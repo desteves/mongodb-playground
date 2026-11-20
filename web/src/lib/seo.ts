@@ -44,8 +44,8 @@ export const PAGES: Record<string, { title: string; description: string }> = {
       'Run the MongoDB playground on your machine with the Atlas CLI, Docker or the desktop app, or point it at a free-forever or ephemeral MongoDB Atlas cluster.',
   },
   '/about': {
-    title: 'About MongoDB Playground – Runs on a MongoDB Atlas M20 Cluster',
+    title: 'About MongoDB Playground – Runs on a Dedicated MongoDB Atlas Cluster',
     description:
-      'How the online MongoDB shell works: throwaway databases on a MongoDB Atlas M20 cluster, limits, privacy, and the stack behind it.',
+      'How the online MongoDB shell works: throwaway databases on a dedicated MongoDB Atlas cluster, limits, privacy, and the stack behind it.',
   },
 };

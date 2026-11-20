@@ -7,7 +7,7 @@ product: every feature must be discoverable and usable through the API.
 
 MongoDB Playground: an online MongoDB shell. Users supply documents, run mongosh-style statements (CRUD,
 aggregation, indexes, Atlas Search, Vector Search), see query plans, and share a UUID link. Rust API on Cloud
-Run, Svelte 5 + Vite + CodeMirror 6 web UI, Tauri 2 desktop app, Terraform for GCP, Atlas (M20, Private Service
+Run, Svelte 5 + Vite + CodeMirror 6 web UI, Tauri 2 desktop app, Terraform for GCP, Atlas (M10, Private Service
 Connect) and Cloudflare.
 
 ## Using the playground as an agent

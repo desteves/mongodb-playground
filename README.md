@@ -16,7 +16,7 @@ Everything a person can click, an agent can call: a versioned REST API (`/api/v1
 
 **What it is:** a Rust API (axum + the MongoDB driver) on Cloud Run, a Svelte 5 UI built with Vite and
 CodeMirror 6, a Tauri 2 desktop app that reuses the same Rust core, and Terraform for GCP, MongoDB Atlas
-(M20 over Private Service Connect) and Cloudflare. Keywords: online MongoDB shell, MongoDB playground, test
+(M10 over Private Service Connect) and Cloudflare. Keywords: online MongoDB shell, MongoDB playground, test
 MongoDB queries, mongosh in the browser, aggregation pipeline tester, Atlas Search and Vector Search sandbox,
 MongoDB MCP server.
 
@@ -56,7 +56,7 @@ cd web && npm run tauri build                   # installer (add icons first: np
 
 ## The site
 
-A framed website with a left nav: **Playground** (Data, Shell and Results panels, Run, Explain, Share, **Export**), **REST API**, **MCP server**, **Run it yourself**, **About** (it runs on a MongoDB Atlas M20 cluster), and a footer plus header and sidebar links to create a free Atlas cluster (with UTM parameters). MongoDB-style Evergreen / Spring Green theme with light, dark and auto modes; phones get tabs and a drawer. Pages carry SEO metadata (title, description, keywords, canonical, Open Graph, JSON-LD, `robots.txt`, `sitemap.xml`).
+A framed website with a left nav: **Playground** (Data, Shell and Results panels, Run, Explain, Share, **Export**), **REST API**, **MCP server**, **Run it yourself**, **About** (it runs on a MongoDB Atlas M10 cluster), and a footer plus header and sidebar links to create a free Atlas cluster (with UTM parameters). MongoDB-style Evergreen / Spring Green theme with light, dark and auto modes; phones get tabs and a drawer. Pages carry SEO metadata (title, description, keywords, canonical, Open Graph, JSON-LD, `robots.txt`, `sitemap.xml`).
 
 - **Export:** a `mongosh` script that recreates the data, indexes and statements against any MongoDB (`mongosh <uri> --file playground.js`), the data as Extended JSON, the results as JSON or CSV, the transcript as text, or the request as `curl`. API: `POST /api/v1/export`; MCP: `export_playground`.
 - **Sample data is a feature flag, off by default** (`FEATURE_SAMPLE_DATA=1` turns it on); the UI hides it and the API rejects `datasource` with a clear error.
@@ -80,7 +80,7 @@ A framed website with a left nav: **Playground** (Data, Shell and Results panels
 
 ## Deploying
 
-`infra/` is the Terraform for GCP, Atlas (M20 over Private Service Connect) and Cloudflare; see [infra/README.md](infra/README.md). `cloudbuild.yaml` tests, builds and deploys. `Dockerfile.api` builds one image: the API plus the web app. `docker compose up` runs a local stack (Atlas Local image, so search works).
+`infra/` is the Terraform for GCP, Atlas (M10 over Private Service Connect) and Cloudflare; see [infra/README.md](infra/README.md). `cloudbuild.yaml` tests, builds and deploys. `Dockerfile.api` builds one image: the API plus the web app. `docker compose up` runs a local stack (Atlas Local image, so search works).
 
 ## Share links, sample data, search index, stats
 

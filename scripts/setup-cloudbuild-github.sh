@@ -50,7 +50,8 @@ if [ "$(stage)" != "COMPLETE" ]; then
     --format="value(installationState.actionUri)")"
   echo
   echo "== authorise the Cloud Build GitHub App (one time, in a browser) =="
-  echo "Open this URL, sign in to GitHub, install the app and select the repository $REPO_SLUG:"
+  echo "Open this URL, sign in to GitHub and install the app. Under 'Repository access' choose"
+  echo "'Only select repositories' and add $REPO_NAME, or choose 'All repositories':"
   echo "  $ACTION_URI"
   echo
   echo "Waiting for the authorisation to complete (Ctrl-C to stop; run this script again afterwards)..."
@@ -69,8 +70,16 @@ echo "Connection is COMPLETE."
 if ! gcloud builds repositories describe "$REPO_NAME" --connection="$CONNECTION" --region="$REGION" \
   --project="$PROJECT" >/dev/null 2>&1; then
   echo "== linking $REPO_SLUG =="
-  gcloud builds repositories create "$REPO_NAME" --connection="$CONNECTION" --region="$REGION" \
-    --project="$PROJECT" --remote-uri="https://github.com/${REPO_SLUG}.git"
+  if ! gcloud builds repositories create "$REPO_NAME" --connection="$CONNECTION" --region="$REGION" \
+    --project="$PROJECT" --remote-uri="https://github.com/${REPO_SLUG}.git"; then
+    echo >&2
+    echo "Linking failed. If it says the repository is not accessible to the Cloud Build GitHub App:" >&2
+    echo "  1. Open https://github.com/settings/installations (or the organisation's installations page)" >&2
+    echo "     and configure the Google Cloud Build app (the installation id is in the error above)." >&2
+    echo "  2. Under 'Repository access' choose 'Only select repositories' and add ${REPO_NAME}," >&2
+    echo "     or choose 'All repositories'. Save, then run this script again." >&2
+    exit 1
+  fi
 fi
 
 ID="projects/${PROJECT}/locations/${REGION}/connections/${CONNECTION}/repositories/${REPO_NAME}"

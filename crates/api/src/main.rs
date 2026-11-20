@@ -581,7 +581,7 @@ pub(crate) async fn limits_json(state: &AppState) -> Value {
         "maxConcurrentSearchRuns": l.max_concurrent_search_runs,
         "sampleSupported": sample,
         "features": { "sampleData": state.features.sample_data },
-        "deployment": { "cluster": std::env::var("CLUSTER_TIER").unwrap_or_else(|_| "M20".into()) },
+        "deployment": { "cluster": std::env::var("CLUSTER_TIER").unwrap_or_else(|_| "M10".into()) },
         "sampleMaxResults": l.sample_max_results,
         "maxShareBytes": l.max_share_bytes,
         "rateLimit": {

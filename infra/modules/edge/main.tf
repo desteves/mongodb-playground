@@ -45,11 +45,29 @@ resource "google_compute_ssl_policy" "modern" {
   min_tls_version = "TLS_1_2"
 }
 
+# Covers the apex and www: Cloudflare is set to Full (strict), so every proxied hostname needs a valid
+# origin certificate. A managed certificate cannot be edited in place, so changing the domain list makes a
+# new one. The random suffix changes with the domains, and create_before_destroy lets the new certificate
+# exist while the old one is still attached to the load balancer.
+locals {
+  cert_domains = [var.domain, "www.${var.domain}"]
+}
+
+resource "random_id" "cert" {
+  byte_length = 3
+  keepers = {
+    domains = join(",", local.cert_domains)
+  }
+}
+
 resource "google_compute_managed_ssl_certificate" "cert" {
   project = var.project_id
-  name    = "playground-cert"
+  name    = "playground-cert-${random_id.cert.hex}"
   managed {
-    domains = [var.domain]
+    domains = local.cert_domains
+  }
+  lifecycle {
+    create_before_destroy = true
   }
 }
 

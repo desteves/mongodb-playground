@@ -54,8 +54,9 @@ variable "cluster_name" {
 }
 
 variable "cluster_tier" {
-  type    = string
-  default = "M20"
+  type        = string
+  description = "Atlas cluster tier. Private Service Connect and Atlas Search need M10 or larger. Resizing is an in-place update."
+  default     = "M10"
 }
 
 variable "termination_protection" {

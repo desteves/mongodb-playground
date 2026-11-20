@@ -109,6 +109,7 @@ module "runtime" {
   subnetwork      = module.network.subnetwork_name
   secret_ids      = module.secrets.secret_ids
   concurrency     = var.max_pool_size
+  cluster_tier    = var.cluster_tier
   max_instances   = var.max_instances
   domain          = var.domain
   internal_token  = random_password.internal_token.result

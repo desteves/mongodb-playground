@@ -20,9 +20,9 @@ test('the left nav reaches every page and the head follows', async ({ page }) =>
   await expect(page).toHaveTitle(/Online MongoDB Shell/);
 });
 
-test('About says it runs on an Atlas M20 cluster', async ({ page }) => {
+test('About says which Atlas cluster tier it runs on', async ({ page }) => {
   await page.goto('/about');
-  await expect(page.getByRole('heading', { name: /runs on a MongoDB Atlas M20 cluster/i })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /runs on a MongoDB Atlas M\d+ cluster/i })).toBeVisible();
 });
 
 test('every "free Atlas cluster" link carries UTM parameters', async ({ page }) => {

@@ -13,7 +13,7 @@
 ## Understand it
 - [README](README.md): overview, quick start, testing
 - [Master plan](docs/MASTER_PLAN.md): architecture, decisions, limits, security model
-- [Infrastructure](infra/README.md): Terraform for GCP, Atlas M20 over Private Service Connect, Cloudflare
+- [Infrastructure](infra/README.md): Terraform for GCP, Atlas M10 over Private Service Connect, Cloudflare
 
 ## Contribute
 - [Contributing](CONTRIBUTING.md)

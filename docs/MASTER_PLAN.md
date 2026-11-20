@@ -22,7 +22,7 @@ Browser (Svelte SPA) ─┐
 Tauri desktop app ────┤   Cloudflare (DNS, proxy, WAF, rate limits, cache)
                       └─> Global HTTPS load balancer + Cloud Armor
                             └─> Cloud Run: Rust API (axum) that also serves the SPA
-                                  └─ Direct VPC egress ─> Private Service Connect ─> Atlas M20
+                                  └─ Direct VPC egress ─> Private Service Connect ─> Atlas M10
                                                                 ├─ pg_<id>            throwaway run databases
                                                                 ├─ sample_*           optional, read-only
                                                                 ├─ shares             share links
@@ -35,7 +35,7 @@ Tauri desktop app ────┤   Cloudflare (DNS, proxy, WAF, rate limits, ca
   Tauri 2 desktop app wraps the same build.
 - **Rust workspace:** `crates/core` (parser, validation, runner, explain, share, export, stats),
   `crates/api` (HTTP, rate limiting, MCP) and `src-tauri` (desktop app, runs `core` in-process).
-- **Database:** an Atlas M20 reached only over Private Service Connect. No public path.
+- **Database:** an Atlas M10 reached only over Private Service Connect. No public path.
 - **Edge:** Cloudflare proxies the domain; the load balancer accepts only Cloudflare traffic.
 - **Infrastructure and CI:** Terraform for GCP, Atlas and Cloudflare; Cloud Build for test, build and deploy.
 
@@ -196,7 +196,7 @@ whole thing off. A separate database user can write only to this database.
 - **GCP:** Artifact Registry, Cloud Run with a least-privilege service account and Direct VPC egress, Secret
   Manager, a global HTTPS load balancer with a managed certificate and a Cloud Armor policy, Cloud Scheduler
   jobs for the sweep and roll-up, budget and log-based alerts, and Cloud Build triggers.
-- **Atlas:** an M20 cluster, Private Service Connect, and one database user per job.
+- **Atlas:** an M10 cluster, Private Service Connect, and one database user per job.
 - **Cloudflare:** proxied DNS records, strict TLS, an origin-key transform rule, rate-limit and cache rules,
   and a Turnstile widget.
 - **Cloud Build** (`cloudbuild.yaml`): lint and tests first, then build the image, push it, and deploy that
@@ -225,12 +225,12 @@ mobile projects); a load test followed by an adversarial test and a leftover-dat
 
 ## Risks and open items
 
-- **Search on the M20.** There is no hard cap on search indexes at M10 and above, but many indexes on a small
+- **Search on the M10.** There is no hard cap on search indexes at M10 and above, but many indexes on a small
   tier add load and memory pressure. The practical limits are one per collection, eight collections per run,
   and the global search-run concurrency cap.
 - **Cross-database protection** rests on parser validation and separate database users, because Atlas custom
   roles cannot wildcard-match `pg_*` names. This needs ongoing tests and fuzzing.
 - **Abuse** (heavy pipelines, storage spam): caps, rate limits, TTLs, a budget alert and the sweep job.
-- **Fixed costs:** the M20 and the load balancer run all the time.
+- **Fixed costs:** the M10 and the load balancer run all the time.
 - **Not yet exercised against real accounts:** Turnstile through real Cloudflare, behavior behind Cloud Armor
   and Cloud Run, and the Tauri app launch.

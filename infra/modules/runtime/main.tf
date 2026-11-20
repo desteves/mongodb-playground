@@ -11,6 +11,11 @@ variable "internal_token" {
   type      = string
   sensitive = true
 }
+variable "cluster_tier" {
+  type        = string
+  description = "Reported by the API (GET /api/v1/limits) and shown on the About page."
+}
+
 variable "turnstile_site_key" {
   type    = string
   default = ""
@@ -94,7 +99,7 @@ resource "google_cloud_run_v2_service" "api" {
       }
       env {
         name  = "CLUSTER_TIER"
-        value = "M20"
+        value = var.cluster_tier
       }
 
       dynamic "env" {

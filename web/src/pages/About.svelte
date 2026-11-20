@@ -1,7 +1,7 @@
 <script lang="ts">
   import { site, registerUrl } from '../lib/site.svelte';
 
-  const tier = $derived(site.limits?.deployment?.cluster ?? 'M20');
+  const tier = $derived(site.limits?.deployment?.cluster ?? 'M10');
 </script>
 
 <div class="page">

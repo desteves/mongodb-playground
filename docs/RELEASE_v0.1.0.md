@@ -10,7 +10,7 @@ An online MongoDB shell for builders, human and agent alike: <https://mongoplayg
 - **Share links:** random UUID links that expire 90 days after the last view. Export a mongosh script, JSON, CSV or curl.
 - **Agents first:** versioned REST API (`/api/v1`), OpenAPI 3.1, `llms.txt`, and an MCP server with nine tools.
 - **Desktop app:** a Tauri 2 build that runs the same Rust core against a local MongoDB.
-- **Infrastructure as code:** Terraform for GCP (Cloud Run, load balancer, Cloud Armor), Atlas (M20 over Private Service Connect) and Cloudflare; Cloud Build for CI/CD.
+- **Infrastructure as code:** Terraform for GCP (Cloud Run, load balancer, Cloud Armor), Atlas (M10 over Private Service Connect) and Cloudflare; Cloud Build for CI/CD.
 
 ## Run it
 
