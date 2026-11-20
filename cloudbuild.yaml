@@ -2,7 +2,8 @@
 # Order: gate on lint and tests first, then build, push and deploy the
 # exact commit SHA (never :latest, which Cloud Run does not re-pull without a new revision).
 steps:
-  # 1. Rust: format, lint, unit tests. Integration tests need MONGODB_URI and skip themselves here.
+  # 1. Rust: format, lint, unit tests. The desktop app (src-tauri) needs GTK/WebKit system libraries, so it is
+  #    excluded here; it is built locally. Integration tests need MONGODB_URI and skip themselves here.
   - id: rust-checks
     name: 'rust:1-slim-bookworm'
     entrypoint: bash
@@ -12,8 +13,8 @@ steps:
         set -euo pipefail
         rustup component add clippy rustfmt
         cargo fmt --all -- --check || echo "note: rustfmt differences (not blocking yet)"
-        cargo clippy --all-targets -- -D warnings
-        cargo test
+        cargo clippy --workspace --exclude playground-desktop --all-targets -- -D warnings
+        cargo test --workspace --exclude playground-desktop
     env: ['CARGO_HOME=/workspace/.cargo-home', 'CARGO_TARGET_DIR=/workspace/.cargo-target']
 
   # 2. Web: typecheck and build (the image build repeats the build; this fails fast first).
