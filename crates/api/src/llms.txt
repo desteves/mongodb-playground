@@ -1,0 +1,154 @@
+# MongoDB Playground
+
+> A MongoDB shell in your browser or your agent. Write mongosh-style statements, run them in order against
+> documents you supply, and read a transcript. Each run uses a throwaway database that is deleted afterwards.
+> No account needed. Built for agents as much as people.
+
+## Quick start for agents
+
+1. GET  /api/v1/limits     - hard limits and capabilities (searchSupported, sampleSupported, ...).
+2. GET  /api/v1/examples   - templates and examples. Each one is a valid body for POST /api/v1/run.
+   Templates (kind: "template") are the starting points the web app offers: "single" (one collection) and
+   "multi" (several) use the same per-collection data-panel shape.
+   GET /api/v1/guide        - how to run it yourself, get a free-forever or ephemeral Atlas cluster, or connect over MCP.
+3. POST /api/v1/validate   - same body as /run; checks it without running it (no database).
+4. POST /api/v1/run        - runs the script and returns a transcript.
+5. POST /api/v1/explain    - same body; returns query plans instead of running the statements.
+
+Machine-readable description: GET /api/v1/openapi.json (also at /openapi.json)
+MCP (Streamable HTTP, stateless, JSON responses): POST /api/v1/mcp (also at /mcp)
+  Tools: run_query, validate_query, explain_query, share_query, get_shared, export_playground, list_examples, get_setup_guide, get_limits
+MCP discovery card: GET /.well-known/mcp.json
+  Claude Code: claude mcp add --transport http mongodb-playground <this site>/mcp
+
+## Request: a script and a data panel
+
+{
+  "script": "db.people.insertOne({name: 'Tim', age: 30})\ndb.people.find({age: {$gt: 30}}).sort({age: -1})",
+  "config": "db = { people: [ {name: 'Ada', age: 36}, {name: 'Linus', age: 55} ] }"
+}
+
+`script` is mongosh-style: db.<collection>.<method>(...) statements, one after another (newline or `;`), at most
+25, run in order against ONE database, so an insert is visible to the next find.
+Supported: find / findOne (+ .sort .limit .skip .projection .count .explain), aggregate, countDocuments,
+estimatedDocumentCount, distinct, insertOne, insertMany, updateOne, updateMany, replaceOne (option: upsert),
+deleteOne, deleteMany, createIndex, dropIndex, getIndexes, createSearchIndex.
+Also db["name"] and db.getCollection("name"). `.explain("queryPlanner"|"executionStats"|"allPlansExecution")`
+turns find/aggregate/count/update/delete into a plan (no documents; writes are not performed).
+
+Values use shell syntax or plain JSON: unquoted keys, 'single quotes', trailing commas, // and /* */ comments,
+/regex/i literals (flags i m x s u; not g), ObjectId("..."), ISODate("..."), new Date(), NumberLong(), NumberInt(),
+NumberDecimal(), UUID(), Timestamp(t, i).
+
+`config` is the data panel. A JSON value or a string in the same syntax. Shapes (the templates use the last one,
+with one collection for "single" and several for "multi"):
+  [ {..}, {..} ]                              shorthand: one collection named `collection`
+  db = { people: [ {..} ], orders: [ {..} ] } shorthand: documents only (the `db =` is optional)
+  db = { people: {                            per collection, everything in one place:
+           documents: [ {..} ],
+           indexes: [ {key: {age: 1}, options: {unique: true}} ],          // at most 3 per collection
+           searchIndexes: [ {definition: {mappings: {dynamic: true}}} ],   // Atlas Search, 1 per collection
+           vectorSearchIndexes: [ {definition: {fields: [ {type: "vector", path: "embedding",
+                                   numDimensions: 3, similarity: "cosine"} ]}} ] } }   // Vector Search, 1 per collection
+Indexes (panel or createIndex statements) are built before the statements that use them, so explain can show
+IXSCAN. Index options: name, unique, sparse, expireAfterSeconds, partialFilterExpression, collation, weights,
+wildcardProjection, default_language, language_override. $search / $searchMeta need a search index on the
+collection, $vectorSearch needs a vector search index (default names "default" and "vector_index").
+
+Optional: "explain": "executionStats" explains every statement instead of running it (inserts and index builds
+still run so the plans have data and indexes), and "datasource": {"sample": "sample_mflix"} (see below).
+
+## Response: a transcript
+
+{
+  "ok": true,
+  "statements": [
+    { "index": 0, "line": 1, "statement": "db.people.insertOne({name: 'Tim', age: 30})", "collection": "people",
+      "op": "insert", "results": [ ...the collection after the write... ], "write": {"inserted": 1}, "elapsed_ms": 3 },
+    { "index": 1, "op": "find", "results": [ {...} ], ... }
+  ],
+  "elapsed_ms": 12
+}
+
+- Reads: `results` are the documents (count -> [{"count": n}], distinct -> the values). Documents are relaxed
+  Extended JSON. There is no cap on the number of results.
+- Writes (insert/update/delete): `write` has counts (inserted | matched, modified, upserted | deleted) and `results`
+  is the collection afterwards. Index statements return what they created or dropped.
+- Explain: `explain: {raw, summary}`; summary has stages, indexUsed, collscan, keysExamined, docsExamined, returned,
+  executionTimeMs and plain-language `advice`.
+- If a statement fails, the script STOPS there: HTTP 200 with "ok": false, the failing statement carries
+  `error: {code, message, hint}` (also copied to the top-level `error`), earlier statements keep their output.
+- A request that cannot even be parsed or validated (bad syntax, a forbidden operator, over a limit) is rejected
+  before anything runs: HTTP 4xx with {"error": {"code", "message", "hint"}}; the message names the statement and
+  line, for example "statement 2 (line 5): db.people.bogus() is not supported".
+
+| code             | HTTP | meaning                                              |
+|------------------|------|------------------------------------------------------|
+| invalid_request  | 422  | syntax error, unknown method or option, over a limit  |
+| forbidden        | 403  | blocked operator or stage (see Rules)                 |
+| database_error   | 422* | MongoDB rejected the command; message says why        |
+| timeout          | 408  | run exceeded the time budget                          |
+| not_found        | 404  | unknown or expired share id                           |
+| busy             | 503  | too many search-index runs at once; retry shortly     |
+| rate_limited     | 429  | too many requests from this client; see Retry-After   |
+| unavailable      | 503  | database temporarily unavailable; retry               |
+(*) inside a script a database_error is reported on the statement with HTTP 200 and "ok": false.
+
+## Older structured form (still supported)
+
+{"mode": "find|aggregate|count|distinct|insert|update|delete|listIndexes", "collection": "people",
+ "collections": {...}, "query": ..., "indexes": {...}, "searchIndexes": {...}, "explain": "executionStats"}
+runs ONE operation and returns {"results": [...], "write": {...}, "explain": {...}, "elapsed_ms": n}. Prefer scripts.
+
+## Share links
+
+POST /api/v1/share (same body as /run; only valid playgrounds) -> {"id": "...", "url": "/p/<id>"}.
+GET /api/v1/p/<id> returns it exactly as saved (comments and regex literals included); send it back to /run
+as-is (drop `id` and `createdAt`). Links expire after 90 days without a
+view; limit 4 MB. MCP: share_query, get_shared.
+
+## Export
+
+POST /api/v1/export {"script": "...", "config": "...", "format": "mongosh" | "json"} returns
+{"format", "filename", "mimeType", "content"}. "mongosh" is a script that recreates the data, indexes and statements
+against any MongoDB: `mongosh "<connection string>" --file playground.js`. "json" is the data panel as Extended JSON.
+MCP: export_playground.
+
+## Rate limits
+
+Per client address, a token bucket on the endpoints that do work (run, explain, share, validate, export, MCP).
+Every response carries X-RateLimit-Limit and X-RateLimit-Remaining; a refusal is HTTP 429 with Retry-After and
+{"error": {"code": "rate_limited", ...}}. Back off for Retry-After seconds. GET /api/v1/limits shows the numbers.
+Browsers that pass Cloudflare Turnstile (POST /api/v1/verify) get a higher tier; agents do not need it.
+
+## Sample data (read-only; a feature flag, OFF unless the deployment enables it)
+
+Check limits.features.sampleData first. When it is false, `datasource` is rejected with a clear error.
+
+"datasource": {"sample": "sample_mflix"} with a script like db.movies.find({year: 1999}).limit(5) runs find,
+aggregate, countDocuments, distinct (and their .explain()) against an Atlas sample database. Omit `config`; writes
+and index statements are rejected. Each statement returns at most limits.sampleMaxResults (1000) documents and sets
+"truncated": true when the cap is hit. GET /api/v1/samples lists what is available (limits.sampleSupported);
+GET /api/v1/samples/<db>/<collection> returns 3 random documents so you can see the field names.
+
+## Atlas Search and Vector Search
+
+Declare the index in the data panel (or with createSearchIndex), then use $search / $searchMeta / $vectorSearch in
+aggregate. The index is built and waited for (seconds, up to 60 s) before the statements run. Only on Atlas or
+`atlas local` (limits.searchSupported); elsewhere the run fails with a clear message. Search runs are limited in
+number (limits.maxConcurrentSearchRuns); `busy` means retry shortly. Embeddings are not generated for you:
+put vectors in your documents.
+  createSearchIndex({mappings: {dynamic: true}})                       // Atlas Search
+  createSearchIndex("vec", "vectorSearch", {fields: [{type: "vector", path: "e", numDimensions: 3, similarity: "cosine"}]})
+
+## Rules
+
+- Blocked anywhere in a request: $where, $function, $accumulator, $out, $merge, admin stages ($currentOp,
+  $collStats, $indexStats, ...), and $lookup/$graphLookup/$unionWith naming another database.
+- No server-side JavaScript, no variables, loops or functions: the script is a list of db.<coll>.<method>() calls.
+- Limits (GET /api/v1/limits): 8 collections, 256 documents per collection (after inserts), 32 MB uncompressed
+  payload, 25 statements, 10 s query time per statement, 3 indexes + 1 search + 1 vector index per collection,
+  regex patterns up to 256 characters and 20 literals per editor.
+- Compression: send `Content-Encoding: gzip` (or br, zstd) on large requests and `Accept-Encoding` to get
+  compressed responses. The 32 MB limit applies after decompression.
+- Everything is public and ephemeral: do not send secrets or personal data.

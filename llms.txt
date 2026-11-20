@@ -1,0 +1,23 @@
+# MongoDB Playground
+
+> An online MongoDB shell for builders, human and agent. Run mongosh-style statements (CRUD, aggregation,
+> indexes, Atlas Search, Vector Search) against documents you supply, read query plans, and share a UUID link.
+> Rust API + Svelte UI + Tauri desktop app. Apache-2.0. Agents are first-class users.
+
+## Use it
+- [Agent guide](AGENTS.md): API, MCP tools, limits, suggested flow
+- [Live API reference](crates/api/src/llms.txt): the quick start the running service serves at /llms.txt
+- [OpenAPI 3.1](crates/api/src/openapi.json): REST API under /api/v1
+- [Run it yourself](docs/run-it-yourself.md): local Atlas CLI deployment, free M0 cluster, ephemeral cluster, Docker Compose
+
+## Understand it
+- [README](README.md): overview, quick start, testing
+- [Master plan](docs/MASTER_PLAN.md): architecture, decisions, limits, security model
+- [Infrastructure](infra/README.md): Terraform for GCP, Atlas M20 over Private Service Connect, Cloudflare
+
+## Contribute
+- [Contributing](CONTRIBUTING.md)
+- [Security policy](SECURITY.md)
+
+## Optional
+- [Examples](crates/core/src/examples.json): templates and examples, each a valid request body for POST /api/v1/run

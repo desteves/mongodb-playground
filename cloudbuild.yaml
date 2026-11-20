@@ -1,0 +1,79 @@
+# Cloud Build pipeline for MongoDB Playground (the trigger is managed by infra/modules/cicd).
+# Order: gate on lint and tests first, then build, push and deploy the
+# exact commit SHA (never :latest, which Cloud Run does not re-pull without a new revision).
+steps:
+  # 1. Rust: format, lint, unit tests. Integration tests need MONGODB_URI and skip themselves here.
+  - id: rust-checks
+    name: 'rust:1-slim-bookworm'
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        rustup component add clippy rustfmt
+        cargo fmt --all -- --check || echo "note: rustfmt differences (not blocking yet)"
+        cargo clippy --all-targets -- -D warnings
+        cargo test
+    env: ['CARGO_HOME=/workspace/.cargo-home', 'CARGO_TARGET_DIR=/workspace/.cargo-target']
+
+  # 2. Web: typecheck and build (the image build repeats the build; this fails fast first).
+  - id: web-checks
+    name: 'node:22-slim'
+    dir: web
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        npm ci --no-audit --no-fund
+        npm run check
+        npm run build
+
+  # 3. Build the image, reusing layers from the previous build.
+  - id: pull-cache
+    name: 'gcr.io/cloud-builders/docker'
+    entrypoint: bash
+    args: ['-c', 'docker pull ${_IMAGE}:latest || true']
+    waitFor: ['rust-checks', 'web-checks']
+
+  - id: build
+    name: 'gcr.io/cloud-builders/docker'
+    env: ['DOCKER_BUILDKIT=1']
+    args:
+      - build
+      - -f
+      - Dockerfile.api
+      - --cache-from
+      - ${_IMAGE}:latest
+      - -t
+      - ${_IMAGE}:${SHORT_SHA}
+      - -t
+      - ${_IMAGE}:latest
+      - .
+
+  - id: push
+    name: 'gcr.io/cloud-builders/docker'
+    args: ['push', '--all-tags', '${_IMAGE}']
+
+  # 4. Deploy the exact SHA. Secrets, networking and scaling are Terraform's; this only swaps the image.
+  - id: deploy
+    name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ${_SERVICE}
+      - --image=${_IMAGE}:${SHORT_SHA}
+      - --region=${_REGION}
+      - --quiet
+
+substitutions:
+  _REGION: us-central1
+  _IMAGE: us-central1-docker.pkg.dev/playground-515215/playground/api
+  _SERVICE: playground-api
+
+options:
+  # Required when the trigger runs as a user-managed service account.
+  logging: CLOUD_LOGGING_ONLY
+images:
+  - ${_IMAGE}:${SHORT_SHA}

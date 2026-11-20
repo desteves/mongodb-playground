@@ -1,0 +1,116 @@
+[
+  {
+    "id": "single",
+    "title": "Single collection (data + indexes in one place)",
+    "kind": "template",
+    "config": "db = {\n  collection: {\n    documents: [\n      { name: \"Ada\",   age: 36, city: \"London\" },\n      { name: \"Linus\", age: 55, city: \"Helsinki\" },\n      { name: \"Grace\", age: 85, city: \"New York\" }\n    ],\n    indexes: [\n      { key: { age: 1 } }   // up to 3 per collection\n    ]\n    // Atlas Search, 1 per collection:\n    // searchIndexes: [ { definition: { mappings: { dynamic: true } } } ],\n    // Vector Search, 1 per collection:\n    // vectorSearchIndexes: [ { definition: { fields: [ { type: \"vector\", path: \"embedding\", numDimensions: 3, similarity: \"cosine\" } ] } } ]\n  }\n}",
+    "script": "db.collection.find({ age: { $gt: 40 } })"
+  },
+  {
+    "id": "multi",
+    "title": "Multiple collections (same shape, one entry per collection)",
+    "kind": "template",
+    "config": "db = {\n  orders: {\n    documents: [\n      { _id: 1, item: \"pen\", qty: 5 },\n      { _id: 2, item: \"ink\", qty: 2 }\n    ],\n    indexes: [\n      { key: { item: 1 } }\n    ]\n  },\n  inventory: {\n    documents: [\n      { item: \"pen\", price: 2 },\n      { item: \"ink\", price: 9 }\n    ],\n    indexes: [\n      { key: { item: 1 } }\n    ]\n  }\n}",
+    "script": "db.orders.aggregate([\n  { $lookup: { from: \"inventory\", localField: \"item\", foreignField: \"item\", as: \"stock\" } },\n  { $unwind: \"$stock\" },\n  { $project: { item: 1, total: { $multiply: [\"$qty\", \"$stock.price\"] } } }\n])"
+  },
+  {
+    "id": "crud-session",
+    "title": "A CRUD session: insert, update, find, delete, count — several statements, run in order",
+    "kind": "example",
+    "config": "[\n  { name: \"Ada\",   age: 36, city: \"London\" },\n  { name: \"Linus\", age: 55, city: \"Helsinki\" },\n  { name: \"Grace\", age: 85, city: \"New York\" },\n  { name: \"Tim\",   age: 30, city: \"London\" }\n]",
+    "script": "db.collection.insertMany([\n  { name: \"Barbara\", age: 40, city: \"Boston\" },\n  { name: \"Alan\", age: 41, city: \"London\" }\n])\ndb.collection.updateMany({ city: \"London\" }, { $set: { country: \"UK\" } })\ndb.collection.find({ country: \"UK\" }, { _id: 0, name: 1, age: 1 }).sort({ age: -1 })\ndb.collection.deleteOne({ name: \"Tim\" })\ndb.collection.countDocuments({})"
+  },
+  {
+    "id": "find-sort-project",
+    "title": "find with filter, projection, sort and limit",
+    "kind": "example",
+    "config": "[\n  { name: \"Ada\",   age: 36, city: \"London\" },\n  { name: \"Linus\", age: 55, city: \"Helsinki\" },\n  { name: \"Grace\", age: 85, city: \"New York\" },\n  { name: \"Tim\",   age: 30, city: \"London\" }\n]",
+    "script": "db.collection.find(\n  { age: { $gte: 35 } },\n  { _id: 0, name: 1, age: 1 }\n).sort({ age: -1 }).limit(2)"
+  },
+  {
+    "id": "aggregate-group",
+    "title": "aggregate: $group by city",
+    "kind": "example",
+    "config": "[\n  { name: \"Ada\",   age: 36, city: \"London\" },\n  { name: \"Linus\", age: 55, city: \"Helsinki\" },\n  { name: \"Grace\", age: 85, city: \"New York\" },\n  { name: \"Tim\",   age: 30, city: \"London\" }\n]",
+    "script": "db.collection.aggregate([\n  { $group: { _id: \"$city\", avgAge: { $avg: \"$age\" }, n: { $sum: 1 } } },\n  { $sort: { n: -1 } }\n])"
+  },
+  {
+    "id": "count-distinct",
+    "title": "countDocuments and distinct",
+    "kind": "example",
+    "config": "[\n  { name: \"Ada\",   age: 36, city: \"London\" },\n  { name: \"Linus\", age: 55, city: \"Helsinki\" },\n  { name: \"Grace\", age: 85, city: \"New York\" },\n  { name: \"Tim\",   age: 30, city: \"London\" }\n]",
+    "script": "db.collection.countDocuments({ city: \"London\" })\ndb.collection.distinct(\"city\")"
+  },
+  {
+    "id": "update-upsert-replace",
+    "title": "updateOne with upsert, replaceOne",
+    "kind": "example",
+    "config": "[\n  { name: \"Ada\",   age: 36, city: \"London\" },\n  { name: \"Linus\", age: 55, city: \"Helsinki\" },\n  { name: \"Grace\", age: 85, city: \"New York\" },\n  { name: \"Tim\",   age: 30, city: \"London\" }\n]",
+    "script": "db.collection.updateOne({ name: \"Zed\" }, { $set: { age: 1 } }, { upsert: true })\ndb.collection.replaceOne({ name: \"Ada\" }, { name: \"Ada L.\", title: \"Countess\" })\ndb.collection.find({}, { _id: 0 })"
+  },
+  {
+    "id": "regex-shell-values",
+    "title": "Regex literals and shell values (ObjectId, ISODate), with comments",
+    "kind": "example",
+    "config": "[\n  { _id: ObjectId(\"507f1f77bcf86cd799439011\"), name: \"Ada\", born: ISODate(\"1815-12-10T00:00:00Z\") },\n  { name: \"ada lovelace\" },\n  { name: \"Linus\" }\n]",
+    "script": "// names that start with \"ada\", any case\ndb.collection.find({ name: /^ada/i }, { _id: 0 })\n// a date range and an ObjectId lookup\ndb.collection.find({ born: { $lt: ISODate(\"1900-01-01\") } }, { name: 1 })\ndb.collection.find({ _id: ObjectId(\"507f1f77bcf86cd799439011\") }, { name: 1 })"
+  },
+  {
+    "id": "index-explain",
+    "title": "An index turns COLLSCAN into IXSCAN (index declared in the data panel)",
+    "kind": "example",
+    "config": "db = {\n  people: {\n    documents: [\n      { name: \"Ada\", age: 36 }, { name: \"Linus\", age: 55 }, { name: \"Grace\", age: 85 }, { name: \"Tim\", age: 30 }\n    ],\n    indexes: [ { key: { age: 1 } } ]\n  }\n}",
+    "script": "db.people.find({ age: 36 }).explain(\"executionStats\")\ndb.people.getIndexes()"
+  },
+  {
+    "id": "createindex-statements",
+    "title": "createIndex as statements: add indexes mid-script, compare plans",
+    "kind": "example",
+    "config": "[\n  { name: \"Ada\",   age: 36, city: \"London\" },\n  { name: \"Linus\", age: 55, city: \"Helsinki\" },\n  { name: \"Grace\", age: 85, city: \"New York\" },\n  { name: \"Tim\",   age: 30, city: \"London\" }\n]",
+    "script": "db.collection.find({ city: \"London\" }).explain()\ndb.collection.createIndex({ city: 1 })\ndb.collection.find({ city: \"London\" }).explain()\ndb.collection.getIndexes()"
+  },
+  {
+    "id": "text-search",
+    "title": "A text index and $text search",
+    "kind": "example",
+    "config": "db = {\n  posts: {\n    documents: [\n      { title: \"MongoDB is fun\" }, { title: \"Rust is fast\" }, { title: \"Compilers and COBOL\" }\n    ],\n    indexes: [ { key: { title: \"text\" } } ]\n  }\n}",
+    "script": "db.posts.find({ $text: { $search: \"rust\" } }, { _id: 0 })"
+  },
+  {
+    "id": "atlas-search",
+    "title": "Atlas Search: a search index in the data panel, then $search (needs Atlas or atlas local)",
+    "kind": "example",
+    "config": "db = {\n  movies: {\n    documents: [\n      { title: \"The Matrix\", plot: \"a hacker learns reality is simulated\", year: 1999 },\n      { title: \"Toy Story\", plot: \"toys come to life when humans leave\", year: 1995 },\n      { title: \"Alien\", plot: \"a crew meets a deadly creature in space\", year: 1979 },\n      { title: \"Arrival\", plot: \"a linguist deciphers an alien language\", year: 2016 }\n    ],\n    searchIndexes: [ { definition: { mappings: { dynamic: true } } } ]\n  }\n}",
+    "script": "db.movies.aggregate([\n  { $search: { text: { query: \"alien\", path: [\"title\", \"plot\"] } } },\n  { $project: { _id: 0, title: 1, score: { $meta: \"searchScore\" } } }\n])"
+  },
+  {
+    "id": "vector-search",
+    "title": "Vector Search: a vector index in the data panel, then $vectorSearch (needs Atlas or atlas local)",
+    "kind": "example",
+    "config": "db = {\n  items: {\n    documents: [\n      { name: \"red apple\",   embedding: [0.9, 0.1, 0.0] },\n      { name: \"green apple\", embedding: [0.8, 0.2, 0.1] },\n      { name: \"blue car\",    embedding: [0.0, 0.1, 0.9] },\n      { name: \"red car\",     embedding: [0.3, 0.0, 0.8] }\n    ],\n    vectorSearchIndexes: [\n      { definition: { fields: [ { type: \"vector\", path: \"embedding\", numDimensions: 3, similarity: \"cosine\" } ] } }\n    ]\n  }\n}",
+    "script": "db.items.aggregate([\n  { $vectorSearch: { index: \"vector_index\", path: \"embedding\", queryVector: [0.85, 0.15, 0.05], numCandidates: 10, limit: 2 } },\n  { $project: { _id: 0, name: 1, score: { $meta: \"vectorSearchScore\" } } }\n])"
+  },
+  {
+    "id": "createsearchindex-statement",
+    "title": "createSearchIndex as a statement (instead of the data panel)",
+    "kind": "example",
+    "config": "[\n  { title: \"The Matrix\", plot: \"a hacker learns reality is simulated\", year: 1999 },\n  { title: \"Toy Story\", plot: \"toys come to life when humans leave\", year: 1995 },\n  { title: \"Alien\", plot: \"a crew meets a deadly creature in space\", year: 1979 },\n  { title: \"Arrival\", plot: \"a linguist deciphers an alien language\", year: 2016 }\n]",
+    "script": "db.collection.createSearchIndex({ mappings: { dynamic: true } })\ndb.collection.aggregate([\n  { $search: { text: { query: \"hacker\", path: \"plot\" } } },\n  { $project: { _id: 0, title: 1 } }\n])"
+  },
+  {
+    "id": "movies-explore",
+    "title": "Movies: your own data, then filter, group and rank (no sample data needed)",
+    "kind": "example",
+    "config": "db = {\n  movies: {\n    documents: [\n      { title: \"The Matrix\",   year: 1999, genres: [\"Action\", \"Sci-Fi\"], rating: 8.7 },\n      { title: \"Fight Club\",   year: 1999, genres: [\"Drama\"],            rating: 8.8 },\n      { title: \"Toy Story\",    year: 1995, genres: [\"Animation\", \"Family\"], rating: 8.3 },\n      { title: \"Heat\",         year: 1995, genres: [\"Action\", \"Crime\"],   rating: 8.3 },\n      { title: \"Arrival\",      year: 2016, genres: [\"Sci-Fi\", \"Drama\"],  rating: 7.9 }\n    ],\n    indexes: [\n      { key: { year: 1, rating: -1 } }\n    ]\n  }\n}",
+    "script": "db.movies.find({ year: 1999 }, { _id: 0, title: 1, rating: 1 }).sort({ rating: -1 })\ndb.movies.aggregate([\n  { $unwind: \"$genres\" },\n  { $group: { _id: \"$genres\", films: { $sum: 1 }, avgRating: { $avg: \"$rating\" } } },\n  { $sort: { films: -1, _id: 1 } }\n])\ndb.movies.countDocuments({ rating: { $gte: 8 } })"
+  },
+  {
+    "id": "sample-mflix",
+    "title": "Sample data: movies from sample_mflix (read-only; needs the Atlas sample dataset)",
+    "kind": "example",
+    "script": "db.movies.find(\n  { year: 1999, \"imdb.rating\": { $gte: 8 } },\n  { _id: 0, title: 1, year: 1, \"imdb.rating\": 1 }\n).sort({ \"imdb.rating\": -1 }).limit(10)\ndb.movies.countDocuments({ year: 1999 })",
+    "datasource": {
+      "sample": "sample_mflix"
+    }
+  }
+]

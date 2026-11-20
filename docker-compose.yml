@@ -1,0 +1,18 @@
+# Local stack. The Atlas Local image bundles mongot, so Atlas Search indexes work here
+# (plain `mongo:8` has no search). Sample data: see the README.
+services:
+  mongo:
+    image: mongodb/mongodb-atlas-local:latest
+    ports: ["27017:27017"]
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    environment:
+      MONGODB_URI: mongodb://mongo:27017/?directConnection=true
+      LOG_JSON: ""
+      STATS_DISABLED: "1"
+    ports: ["8080:8080"]
+    depends_on:
+      - mongo

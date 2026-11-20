@@ -1,0 +1,166 @@
+{
+  "title": "Run it yourself, or get a cluster",
+  "summary": "The playground runs on a hosted site, on your machine against a local MongoDB, against your own Atlas cluster (free or ephemeral), as a desktop app, or from an agent over MCP.",
+  "baseUrl": "{origin}",
+  "atlasRegister": {
+    "url": "https://www.mongodb.com/cloud/atlas/register",
+    "utm": {
+      "utm_source": "mongoplayground",
+      "utm_medium": "referral",
+      "utm_campaign": "playground-free-cluster"
+    },
+    "note": "Free forever M0 cluster (512 MB). No credit card. Add utm_content to say where the link was shown (header, guide, docs)."
+  },
+  "note": "Atlas CLI flags change between releases: check `atlas <command> --help` before relying on these.",
+  "options": [
+    {
+      "id": "hosted",
+      "title": "Use the hosted playground",
+      "summary": "Nothing to install. The web app, the REST API and the MCP server are the same service.",
+      "steps": [
+        {
+          "label": "Open the web app",
+          "url": "{origin}"
+        },
+        {
+          "label": "Run a script through the API",
+          "command": "curl -s -X POST {origin}/api/v1/run -H 'content-type: application/json' -d '{\"script\": \"db.collection.find({age: {$gt: 40}})\", \"config\": \"db = { collection: { documents: [{name: \\\"Ada\\\", age: 36}, {name: \\\"Linus\\\", age: 55}] } }\"}'"
+        },
+        {
+          "label": "Machine-readable docs",
+          "url": "{origin}/llms.txt"
+        }
+      ]
+    },
+    {
+      "id": "mcp",
+      "title": "Use it from an agent (MCP)",
+      "summary": "A stateless Streamable HTTP MCP server. Tools: run_query, validate_query, explain_query, share_query, get_shared, list_examples, get_limits, get_setup_guide.",
+      "steps": [
+        {
+          "label": "Claude Code",
+          "command": "claude mcp add --transport http mongodb-playground {origin}/mcp"
+        },
+        {
+          "label": "Any MCP client (JSON config)",
+          "command": "{\"mcpServers\": {\"mongodb-playground\": {\"type\": \"http\", \"url\": \"{origin}/mcp\"}}}"
+        },
+        {
+          "label": "Discovery card",
+          "url": "{origin}/.well-known/mcp.json"
+        },
+        {
+          "label": "OpenAPI 3.1",
+          "url": "{origin}/api/v1/openapi.json"
+        }
+      ]
+    },
+    {
+      "id": "atlas-local",
+      "title": "Run locally with the Atlas CLI (no account, includes Atlas Search)",
+      "summary": "A local MongoDB in Docker with Atlas Search and Vector Search, then the API and web app on your machine.",
+      "steps": [
+        {
+          "label": "Install the Atlas CLI",
+          "command": "brew install mongodb-atlas-cli"
+        },
+        {
+          "label": "Create a local deployment",
+          "command": "atlas local setup playground --port 27017 --force"
+        },
+        {
+          "label": "Run the API (it also serves the web app)",
+          "command": "MONGODB_URI='mongodb://localhost:27017/?directConnection=true' cargo run -p playground-api"
+        },
+        {
+          "label": "Open it",
+          "url": "http://localhost:8080"
+        },
+        {
+          "label": "Delete the deployment when you are done",
+          "command": "atlas local delete playground --force"
+        }
+      ]
+    },
+    {
+      "id": "atlas-free",
+      "title": "Free-forever Atlas cluster (M0)",
+      "summary": "512 MB, no credit card, one per project. Good for real, persistent use.",
+      "steps": [
+        {
+          "label": "Register for Atlas",
+          "url": "{atlasRegister}"
+        },
+        {
+          "label": "Or from the terminal: sign in and create a free cluster",
+          "command": "atlas setup"
+        },
+        {
+          "label": "Allow your IP address",
+          "command": "atlas accessLists create --currentIp"
+        },
+        {
+          "label": "Get the connection string",
+          "command": "atlas clusters connectionStrings describe <cluster-name>"
+        },
+        {
+          "label": "Optional: load the sample datasets (then use Data: Atlas sample data)",
+          "command": "atlas clusters sampleData load <cluster-name>"
+        },
+        {
+          "label": "Point the API at it",
+          "command": "MONGODB_URI='<connection string>' cargo run -p playground-api"
+        }
+      ]
+    },
+    {
+      "id": "atlas-ephemeral",
+      "title": "Ephemeral Atlas cluster (create, use, delete)",
+      "summary": "A throwaway cloud cluster for a demo or a workshop. Create it, use it, delete it so nothing keeps running.",
+      "steps": [
+        {
+          "label": "Create a project and a free cluster",
+          "command": "atlas projects create playground-tmp && atlas clusters create playground --tier M0 --provider GCP --region CENTRAL_US"
+        },
+        {
+          "label": "Create a user and allow your IP",
+          "command": "atlas dbusers create readWriteAnyDatabase --username pg --password '<password>' && atlas accessLists create --currentIp"
+        },
+        {
+          "label": "Use it (connection string from the Atlas CLI)",
+          "command": "atlas clusters connectionStrings describe playground"
+        },
+        {
+          "label": "Delete everything",
+          "command": "atlas clusters delete playground --force && atlas projects delete <project-id> --force"
+        }
+      ]
+    },
+    {
+      "id": "docker",
+      "title": "Docker Compose",
+      "summary": "The API, the web app and an Atlas Local MongoDB (search works) in one command.",
+      "steps": [
+        {
+          "label": "Start it",
+          "command": "docker compose up --build"
+        },
+        {
+          "label": "Open it",
+          "url": "http://localhost:8080"
+        }
+      ]
+    },
+    {
+      "id": "desktop",
+      "title": "Desktop app (Tauri)",
+      "summary": "Runs queries in-process against a local MongoDB. No network service.",
+      "steps": [
+        {
+          "label": "Run it",
+          "command": "cd web && npm install && npm run tauri dev"
+        }
+      ]
+    }
+  ]
+}

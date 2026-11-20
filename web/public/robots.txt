@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /internal/
+Allow: /llms.txt
+
+Sitemap: https://mongoplayground.com/sitemap.xml

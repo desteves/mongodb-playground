@@ -1,0 +1,27 @@
+[workspace]
+resolver = "2"
+members = ["crates/core", "crates/api", "src-tauri"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+repository = "https://github.com/desteves/mongodb-playground"
+homepage = "https://mongoplayground.com"
+keywords = ["mongodb", "mongosh", "playground", "mcp", "atlas"]
+categories = ["database", "web-programming"]
+
+[workspace.dependencies]
+axum = "0.8"
+mongodb = { version = "3", features = ["zstd-compression", "snappy-compression", "zlib-compression"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "signal", "net", "sync"] }
+tower-http = { version = "0.6", features = ["cors", "trace", "limit", "compression-full", "decompression-full", "fs", "set-header"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+uuid = { version = "1", features = ["v4"] }
+sha2 = "0.10"
+hmac = "0.12"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }

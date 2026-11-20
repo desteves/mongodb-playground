@@ -1,0 +1,24 @@
+[package]
+name = "playground-core"
+description = "Parser, validator and runner for the MongoDB Playground: mongosh-style statements against throwaway databases"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+categories.workspace = true
+keywords.workspace = true
+repository.workspace = true
+
+[dependencies]
+mongodb.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+sha2.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+tokio.workspace = true

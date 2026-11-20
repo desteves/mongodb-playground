@@ -1,0 +1,14 @@
+# Copy to terraform.tfvars (git-ignored). No credentials here: Atlas and Cloudflare keys go in env vars.
+project_id         = "<your-gcp-project-id>"
+region             = "us-central1"
+domain             = "example.com"
+cloudflare_zone_id = "<cloudflare-zone-id>"
+atlas_project_id   = "<atlas-project-id>"
+atlas_region       = "CENTRAL_US"
+
+# Terraform creates the Turnstile widget when this is set (token needs Account > Turnstile > Edit).
+# cloudflare_account_id = "<32-character account id from the Cloudflare dashboard>"
+
+# github_repository_id = "projects/<your-gcp-project-id>/locations/us-central1/connections/github/repositories/mongodb-playground"
+# notification_email   = "you@example.com"
+# billing_account      = "XXXXXX-XXXXXX-XXXXXX"

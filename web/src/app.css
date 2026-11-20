@@ -1,0 +1,264 @@
+/* MongoDB-style theme: Evergreen / Spring Green on dark, white / Forest Green on light.
+   (MongoDB's own typefaces are licensed, so the stacks fall back to system fonts.) */
+:root {
+  --font-body: 'Euclid Circular A', 'Helvetica Neue', Helvetica, Arial, system-ui, sans-serif;
+  --font-display: 'MongoDB Value Serif', 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
+  --font-mono: 'Source Code Pro', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --bg: #ffffff;
+  --surface: #f9fbfa;
+  --surface-2: #e8edeb;
+  --border: #c1c7c6;
+  --fg: #001e2b;
+  --muted: #5c6c75;
+  --accent: #00684a;
+  --link: #016bf8;
+  --brand: #00ed64;
+  --brand-fg: #001e2b;
+  --editor-bg: #ffffff;
+  --editor-gutter: #f1f5f4;
+  --editor-active: #e3fcf7;
+  --err-bg: #ffe5e3;
+  --err-fg: #970606;
+  --shadow: 0 2px 10px rgb(0 30 43 / 12%);
+  color-scheme: light;
+}
+:root[data-theme='dark'] {
+  --bg: #001e2b;
+  --surface: #112733;
+  --surface-2: #1c2d38;
+  --border: #2d4655;
+  --fg: #e8edeb;
+  --muted: #9fb0b8;
+  --accent: #00ed64;
+  --link: #00ed64;
+  --brand: #00ed64;
+  --brand-fg: #001e2b;
+  --editor-bg: #0b2330;
+  --editor-gutter: #0f2b3a;
+  --editor-active: #12384a;
+  --err-bg: #3b1d1d;
+  --err-fg: #ff9a92;
+  --shadow: 0 2px 14px rgb(0 0 0 / 45%);
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-text-size-adjust: 100%;
+}
+#app {
+  height: 100%;
+}
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+a {
+  color: var(--link);
+}
+code,
+pre,
+kbd {
+  font-family: var(--font-mono);
+}
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+button,
+select,
+input,
+textarea {
+  font: inherit;
+  color: inherit;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.35rem 0.8rem;
+  min-height: 2.2rem;
+}
+button {
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.12s, filter 0.12s;
+}
+button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+/* The primary action: Spring Green with Evergreen text, as on mongodb.com. */
+.btn-primary,
+button.primary {
+  background: var(--brand);
+  color: var(--brand-fg);
+  border-color: var(--brand);
+  font-weight: 700;
+}
+.btn-primary:hover:not(:disabled),
+button.primary:hover:not(:disabled) {
+  filter: brightness(1.06);
+  border-color: var(--brand);
+}
+.btn-ghost {
+  background: transparent;
+}
+a.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  text-decoration: none;
+  color: var(--fg);
+  font-weight: 600;
+}
+a.btn.btn-primary {
+  color: var(--brand-fg);
+  border-color: var(--brand);
+}
+a.btn:hover {
+  border-color: var(--accent);
+}
+
+/* Documentation pages */
+.page {
+  max-width: 58rem;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 3rem;
+}
+.page h1 {
+  font-size: clamp(1.9rem, 4vw, 2.6rem);
+  margin: 0 0 0.5rem;
+}
+.page h2 {
+  font-size: 1.5rem;
+  margin: 2.2rem 0 0.6rem;
+}
+.page h3 {
+  font-size: 1.1rem;
+  margin: 1.4rem 0 0.4rem;
+  font-family: var(--font-body);
+  font-weight: 600;
+}
+.page p,
+.page li {
+  color: var(--fg);
+}
+.lead {
+  font-size: 1.15rem;
+  color: var(--muted);
+  max-width: 44rem;
+}
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1rem 1.2rem;
+}
+.grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+}
+.muted {
+  color: var(--muted);
+}
+.codeblock {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.6rem 0.8rem;
+  margin: 0.5rem 0;
+}
+.codeblock pre,
+.codeblock code {
+  flex: 1;
+  margin: 0;
+  min-width: 0;
+  font-size: 0.85rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.page table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+.page th,
+.page td {
+  text-align: left;
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+.badge {
+  display: inline-block;
+  padding: 0.05rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  background: var(--surface-2);
+}
+.badge.post {
+  background: var(--brand);
+  color: var(--brand-fg);
+}
+.badge.get {
+  background: #016bf8;
+  color: #fff;
+}
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 1.2rem;
+  transform: translateX(-50%);
+  background: var(--brand);
+  color: var(--brand-fg);
+  padding: 0.4rem 1rem;
+  border-radius: 999px;
+  font-weight: 600;
+  box-shadow: var(--shadow);
+  z-index: 100;
+}
+.sr {
+  position: absolute;
+  left: -9999px;
+}
+
+/* Phones: 16px editors (iOS zooms on smaller text), roomier touch targets. */
+@media (max-width: 860px) {
+  button,
+  select,
+  input {
+    min-height: 2.6rem;
+  }
+  .page {
+    padding: 1.2rem 1rem 2rem;
+  }
+}

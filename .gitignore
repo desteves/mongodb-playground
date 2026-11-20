@@ -1,0 +1,41 @@
+# --- Secrets and local config (never commit) ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.tfvars
+!*.tfvars.example
+
+# --- Rust ---
+target/
+src-tauri/target/
+src-tauri/gen/
+
+# --- Web (Svelte / Vite / Playwright) ---
+node_modules/
+web/dist/
+web/test-results/
+web/playwright-report/
+web/.vite/
+*.tsbuildinfo
+
+# --- Terraform (commit infra/.terraform.lock.hcl, never state or plans) ---
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+tfplan*
+infra/.terraform.lock.hcl.bak
+
+# --- Editors, OS, logs ---
+.claude/settings.local.json
+.idea/
+.vscode/
+*.log
+.DS_Store
