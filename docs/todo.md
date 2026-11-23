@@ -110,7 +110,7 @@ repository description and topics, and three assertions in `web/e2e/site.spec.ts
   already answers `Accept: text/markdown` itself; Cloudflare only converts HTML responses, so the two do not clash.
 - [x] (done: FAQPage on the home page, HowTo on the Quickstart, in the HTML and the Markdown) Add a FAQ with `FAQPage` JSON-LD (questions above), `HowTo` JSON-LD on the Quickstart, and extend the
   existing `WebApplication` JSON-LD (`isAccessibleForFree`, `sameAs` the GitHub repository, `softwareVersion`).
-- [ ] (source drawn: `web/public/og.svg`; needs a PNG made once with `scripts/make-og-image.sh`, then the meta tags) Open Graph image (1200 x 630) and `twitter:card` = `summary_large_image`.
+- [x] (done: `web/public/og.svg` renders to `og.png` with `scripts/make-og-image.sh`; the meta tags are in `index.html`) Open Graph image (1200 x 630) and `twitter:card` = `summary_large_image`.
 - [x] (done) `robots.txt`: explicitly allow AI crawlers (GPTBot, ClaudeBot, PerplexityBot, Google-Extended) if wanted;
   keep `sitemap.xml` current with `lastmod`; add `llms-full.txt` next to `llms.txt`.
 - [x] Performance (Core Web Vitals): CodeMirror is its own cached chunk, app code 117 kB (see section 4).

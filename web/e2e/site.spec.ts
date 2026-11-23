@@ -80,6 +80,9 @@ test('search engines get what they need', async ({ page, request }) => {
   const about = await (await request.get('/about')).text();
   expect(about).toContain('<h1>About MongoDB Playground</h1>');
   expect(about).toContain('"@type":"AboutPage"');
+  await expect(page.locator('meta[property="og:image"]')).toHaveAttribute('content', 'https://mongoplayground.com/og.png');
+  const png = await request.get('/og.png');
+  expect(png.headers()['content-type']).toContain('image/png');
   const robots = await request.get('/robots.txt');
   expect(await robots.text()).toContain('Sitemap: https://mongoplayground.com/sitemap.xml');
   const sitemap = await request.get('/sitemap.xml');
