@@ -26,72 +26,74 @@ resource "mongodbatlas_advanced_cluster" "this" {
   backup_enabled                 = true
   termination_protection_enabled = var.termination_protection
 
-  replication_specs {
-    region_configs {
-      provider_name = "GCP"
-      region_name   = var.atlas_region
-      priority      = 7
-      electable_specs {
-        instance_size = var.cluster_tier
-        node_count    = 3
-      }
-      auto_scaling {
-        disk_gb_enabled = true
-      }
+  # Provider 2.x: nested blocks became attributes.
+  replication_specs = [
+    {
+      region_configs = [
+        {
+          provider_name = "GCP"
+          region_name   = var.atlas_region
+          priority      = 7
+          electable_specs = {
+            instance_size = var.cluster_tier
+            node_count    = 3
+          }
+          auto_scaling = {
+            disk_gb_enabled = true
+          }
+        }
+      ]
     }
-  }
+  ]
 }
 
 # ---- Private Service Connect --------------------------------------------------------------
 #
-# Legacy architecture: one internal address and one forwarding rule per Atlas service
-# attachment (50). The provider version pinned here (1.x) predates `port_mapping_enabled`, which
-# would need only one of each; moving to the 2.x provider is the upgrade path (it also changes the
-# mongodbatlas_advanced_cluster schema, so do both together).
+# Port-mapped architecture below (one address, one forwarding rule). The legacy architecture (one forwarding
+# rule per Atlas node, 50 of them) was removed: Atlas disables it on 2027-04-30. NOTE: the project's legacy
+# endpoint service in this region is SHARED with another application's endpoint group, so the Terraform
+# resource that represented it (mongodbatlas_privatelink_endpoint.this) was taken out of the state with
+# `terraform state rm`, never destroyed. Do not re-add it.
 
-resource "mongodbatlas_privatelink_endpoint" "this" {
-  project_id    = var.atlas_project_id
-  provider_name = "GCP"
-  region        = var.region
+# ---- Port-mapped Private Service Connect (the supported architecture) ----------------------
+#
+# Atlas retires the legacy GCP architecture (one forwarding rule per node, the 50 resources we had before) on
+# 2027-04-30. Port mapping needs one address and one forwarding rule in total: a single service attachment
+# serves up to 150 nodes, one port per node. Connection hostnames are -psc-N (the legacy ones were -pl-N).
+# Migration guide: https://registry.terraform.io/providers/mongodb/mongodbatlas/latest/docs/guides/gcp-privatelink-port-mapping-migration
+
+resource "mongodbatlas_privatelink_endpoint" "port_mapped" {
+  project_id           = var.atlas_project_id
+  provider_name        = "GCP"
+  region               = var.region
+  port_mapping_enabled = true
 }
 
-resource "google_compute_address" "psc" {
-  count        = 50
+resource "google_compute_address" "psc_port_mapped" {
   project      = var.project_id
-  name         = "atlas-psc-${count.index}"
+  name         = "atlas-psc-port-mapped"
   region       = var.region
   subnetwork   = var.subnetwork_id
   address_type = "INTERNAL"
-  depends_on   = [mongodbatlas_privatelink_endpoint.this]
 }
 
-resource "google_compute_forwarding_rule" "psc" {
-  count                 = 50
+resource "google_compute_forwarding_rule" "psc_port_mapped" {
   project               = var.project_id
-  name                  = google_compute_address.psc[count.index].name
+  name                  = google_compute_address.psc_port_mapped.name
   region                = var.region
   network               = var.network_id
-  ip_address            = google_compute_address.psc[count.index].id
-  target                = mongodbatlas_privatelink_endpoint.this.service_attachment_names[count.index]
+  ip_address            = google_compute_address.psc_port_mapped.id
+  target                = mongodbatlas_privatelink_endpoint.port_mapped.service_attachment_names[0]
   load_balancing_scheme = ""
 }
 
-resource "mongodbatlas_privatelink_endpoint_service" "this" {
-  project_id          = var.atlas_project_id
-  private_link_id     = mongodbatlas_privatelink_endpoint.this.private_link_id
-  provider_name       = "GCP"
-  endpoint_service_id = var.network_name
-  gcp_project_id      = var.project_id
-
-  dynamic "endpoints" {
-    for_each = google_compute_address.psc
-    content {
-      ip_address    = endpoints.value.address
-      endpoint_name = google_compute_forwarding_rule.psc[endpoints.key].name
-    }
-  }
-
-  depends_on = [google_compute_forwarding_rule.psc]
+resource "mongodbatlas_privatelink_endpoint_service" "port_mapped" {
+  project_id                  = mongodbatlas_privatelink_endpoint.port_mapped.project_id
+  private_link_id             = mongodbatlas_privatelink_endpoint.port_mapped.private_link_id
+  provider_name               = "GCP"
+  endpoint_service_id         = google_compute_forwarding_rule.psc_port_mapped.name
+  private_endpoint_ip_address = google_compute_address.psc_port_mapped.address
+  gcp_project_id              = var.project_id
 }
 
 # ---- One database user per job, each with only what it needs ---------------------------------
@@ -150,12 +152,18 @@ resource "mongodbatlas_database_user" "user" {
 }
 
 locals {
-  # Atlas publishes the private-endpoint-aware SRV string once the PSC connection is available.
-  private_srv = try(
-    [for pe in mongodbatlas_advanced_cluster.this.connection_strings[0].private_endpoint : pe.srv_connection_string if pe.srv_connection_string != ""][0],
-    "",
-  )
-  host = local.private_srv == "" ? "" : regex("^mongodb\\+srv://([^/?]+)", local.private_srv)[0]
+  # Atlas publishes one private-endpoint SRV string per endpoint registered on the project's private
+  # endpoint services (legacy -pl-N, port-mapped -psc-N). A project can hold other applications' endpoints
+  # next to ours, and connecting through the wrong one times out, so pick the entry whose endpoint_id is OUR
+  # port-mapped forwarding rule. If none matches the secret stays "pending" (see the
+  # private_endpoint_candidates output) rather than silently using someone else's endpoint.
+  private_endpoints = try(flatten([for cs in mongodbatlas_advanced_cluster.this.connection_strings.private_endpoint : cs]), [])
+  mine = [
+    for pe in local.private_endpoints : pe
+    if pe.srv_connection_string != "" && contains([for e in pe.endpoints : e.endpoint_id], mongodbatlas_privatelink_endpoint_service.port_mapped.endpoint_service_id)
+  ]
+  private_srv = length(local.mine) > 0 ? local.mine[0].srv_connection_string : ""
+  host        = local.private_srv == "" ? "" : regex("^mongodb\\+srv://([^/?]+)", local.private_srv)[0]
   # Connection-string best practice: compression, retry, small pool and an app name are set here
   # so operators can retune them without a rebuild (the app only fills in what is missing).
   params = "retryWrites=true&w=majority&appName=mongodb-playground&compressors=zstd,snappy,zlib&maxPoolSize=${var.max_pool_size}&maxIdleTimeMS=30000"
@@ -168,6 +176,16 @@ output "uris" {
     for name, _ in local.users :
     name => local.host == "" ? "" : "mongodb+srv://pg-${name}:${random_password.user[name].result}@${local.host}/?${local.params}"
   }
+}
+
+# Debugging aid: every private connection string Atlas offers and which endpoint IDs belong to it.
+output "private_endpoint_candidates" {
+  value = [
+    for pe in local.private_endpoints : {
+      srv          = pe.srv_connection_string
+      endpoint_ids = [for e in pe.endpoints : e.endpoint_id]
+    }
+  ]
 }
 
 output "private_endpoint_ready" {

@@ -32,6 +32,23 @@ gcloud auth application-default login
    4. Optional: set `enable_github_connection_setup = false` and apply to drop the service agent's Secret Manager grant.
 7. Re-verify Cloudflare's IP ranges (`modules/edge`), watch Cloud Armor's preview logs for real traffic matching the origin rules, then set `enforce_origin_restriction = true`.
 
+## Private Service Connect: port mapping (legacy endpoint retired)
+
+`modules/atlas` creates a **port-mapped** endpoint: one address and one forwarding rule, with connection hostnames `-psc-N`. Atlas disables the old per-node ("legacy", 50 forwarding rules, `-pl-N`) architecture on 2027-04-30, so it is not used here. The app's connection strings use the entry whose `endpoint_id` is our forwarding rule (see `terraform output atlas_private_endpoint_candidates`).
+
+The Atlas private endpoint *service* for a region is shared per Atlas project. If another application's endpoint group is registered on the same project and region, **never let Terraform destroy the shared legacy service**. It must be removed from the state without being destroyed:
+
+```bash
+terraform state rm module.atlas.mongodbatlas_privatelink_endpoint.this
+```
+
+**Upgrade steps (provider 1.x to 2.x plus port mapping):**
+1. Back up the state: `gcloud storage cp gs://<project>-tfstate/mongodb-playground/default.tfstate ./tfstate.backup`.
+2. `terraform init -upgrade -backend-config="bucket=<project>-tfstate"` (moves the `mongodbatlas` provider to 2.x and updates `.terraform.lock.hcl`; commit it).
+3. If a legacy `mongodbatlas_privatelink_endpoint.this` is in the state, `terraform state rm` it as above, and also remove its legacy endpoint service from the state (`terraform state rm module.atlas.mongodbatlas_privatelink_endpoint_service.this`) if it is no longer in Atlas.
+4. `terraform plan -out=upgrade.tfplan`: expect the port-mapped endpoint, address, forwarding rule and endpoint service added, the 50 legacy addresses and forwarding rules destroyed, and the URI secrets replaced (`pending` until the endpoint is registered). Stop if the plan shows the cluster or a database user being replaced.
+5. `terraform apply upgrade.tfplan`, then `terraform plan` and `apply` once more so the secrets get the real `-psc-0` connection string, then redeploy the service and check `/readyz`.
+
 ## Permissions
 
 | Who | Needs | For |

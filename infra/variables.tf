@@ -88,6 +88,18 @@ variable "enforce_origin_restriction" {
   default     = false
 }
 
+variable "cloudflare_remove_conflicting_dns" {
+  type        = bool
+  description = "Delete any A, AAAA or CNAME on the apex and www that is not an A record for the load balancer (for example a parked page left from a previous host). Needs CLOUDFLARE_API_TOKEN in the environment and python3. Set false to manage DNS by hand."
+  default     = true
+}
+
+variable "cloudflare_proxied" {
+  type        = bool
+  description = "Proxy the apex and www through Cloudflare. Set false until the Google-managed load balancer certificate is ACTIVE (Google cannot validate a domain that resolves to Cloudflare), then set true again."
+  default     = true
+}
+
 variable "enable_github_connection_setup" {
   type        = bool
   description = "Grant Cloud Build's service agent secretmanager.admin so `scripts/setup-cloudbuild-github.sh` can create the GitHub connection. Set false once the connection is COMPLETE to drop the grant."

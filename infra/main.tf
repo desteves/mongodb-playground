@@ -8,7 +8,7 @@ terraform {
 
   required_providers {
     google       = { source = "hashicorp/google", version = "~> 6.0" }
-    mongodbatlas = { source = "mongodb/mongodbatlas", version = ">= 1.30, < 2.0" }
+    mongodbatlas = { source = "mongodb/mongodbatlas", version = ">= 2.22, < 3.0" }
     cloudflare   = { source = "cloudflare/cloudflare", version = "~> 4.30" }
     random       = { source = "hashicorp/random", version = "~> 3.6" }
   }
@@ -135,7 +135,10 @@ module "cloudflare" {
   account_id       = var.cloudflare_account_id
   domain           = var.domain
   load_balancer_ip = module.edge.load_balancer_ip
-  origin_key       = random_password.origin_key.result
+  proxied          = var.cloudflare_proxied
+
+  remove_conflicting_dns = var.cloudflare_remove_conflicting_dns
+  origin_key             = random_password.origin_key.result
 }
 
 module "cicd" {

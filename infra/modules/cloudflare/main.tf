@@ -12,27 +12,53 @@ variable "account_id" {
 }
 variable "domain" { type = string }
 variable "load_balancer_ip" { type = string }
+variable "remove_conflicting_dns" {
+  type        = bool
+  description = "Delete any A, AAAA or CNAME on the apex and www that is not an A record for the load balancer (for example a parked page left from a previous host). Needs CLOUDFLARE_API_TOKEN and python3 on the machine running Terraform."
+  default     = true
+}
+variable "proxied" {
+  type        = bool
+  description = "Proxy the apex and www through Cloudflare. Turn off until the Google-managed certificate is ACTIVE: Google cannot validate a domain that resolves to Cloudflare."
+  default     = true
+}
 variable "origin_key" {
   type      = string
   sensitive = true
 }
 
+# The apex and www must resolve to the load balancer and nothing else: a second A record (an old host's
+# parking page) sends some visitors elsewhere, and Google cannot issue the load balancer's certificate
+# while the name points somewhere else. This removes such records before ours are managed. It runs on the
+# first apply and again whenever the zone, domain or load balancer IP changes. TXT records (SPF, DKIM,
+# DMARC), MX records and other names are never touched.
+resource "terraform_data" "dns_cleanup" {
+  count            = var.remove_conflicting_dns ? 1 : 0
+  triggers_replace = [var.zone_id, var.domain, var.load_balancer_ip]
+
+  provisioner "local-exec" {
+    command = "python3 ${path.module}/cleanup-dns.py ${var.zone_id} ${var.domain} ${var.load_balancer_ip}"
+  }
+}
+
 resource "cloudflare_record" "apex" {
-  zone_id = var.zone_id
-  name    = "@"
-  type    = "A"
-  content = var.load_balancer_ip
-  proxied = true
-  ttl     = 1
+  depends_on = [terraform_data.dns_cleanup]
+  zone_id    = var.zone_id
+  name       = "@"
+  type       = "A"
+  content    = var.load_balancer_ip
+  proxied    = var.proxied
+  ttl        = 1
 }
 
 resource "cloudflare_record" "www" {
-  zone_id = var.zone_id
-  name    = "www"
-  type    = "A"
-  content = var.load_balancer_ip
-  proxied = true
-  ttl     = 1
+  depends_on = [terraform_data.dns_cleanup]
+  zone_id    = var.zone_id
+  name       = "www"
+  type       = "A"
+  content    = var.load_balancer_ip
+  proxied    = var.proxied
+  ttl        = 1
 }
 
 resource "cloudflare_zone_settings_override" "tls" {

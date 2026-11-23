@@ -15,6 +15,11 @@ output "atlas_private_endpoint_ready" {
   value       = module.atlas.private_endpoint_ready
 }
 
+output "atlas_private_endpoint_candidates" {
+  description = "Every private connection string Atlas offers for the cluster and the endpoint IDs behind each. Ours is the one whose endpoint_ids contain the VPC name (playground)."
+  value       = module.atlas.private_endpoint_candidates
+}
+
 output "site" {
   value = "https://${var.domain}"
 }
