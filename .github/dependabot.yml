@@ -1,17 +1,46 @@
+# Dependency updates, grouped so a week brings a few pull requests, not a dozen. Every merge to main deploys, so
+# the risky ones (majors, crates that must move together) are kept apart from the routine ones.
+# Try a pull request locally before merging it: scripts/try-pr.sh <number>.
 version: 2
 updates:
   - package-ecosystem: cargo
     directory: /
     schedule: { interval: weekly }
+    open-pull-requests-limit: 5
+    groups:
+      # RustCrypto crates share a trait crate (digest): they only work at matching versions, so they move together.
+      rustcrypto:
+        patterns: ["sha2", "hmac", "digest"]
+      # Patch releases only: in 0.x versions a minor bump (0.6 to 0.7) can change the API.
+      rust-patch:
+        update-types: ["patch"]
+
   - package-ecosystem: npm
     directory: /web
     schedule: { interval: weekly }
+    open-pull-requests-limit: 5
+    groups:
+      # Vite and its Svelte plugin must match.
+      vite:
+        patterns: ["vite", "@sveltejs/vite-plugin-svelte"]
+      web-minor-patch:
+        update-types: ["minor", "patch"]
+
   - package-ecosystem: docker
     directory: /
     schedule: { interval: weekly }
+    ignore:
+      # Node and Rust major versions are chosen on purpose (LTS), not by a bot.
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]
+
   - package-ecosystem: terraform
     directory: /infra
     schedule: { interval: weekly }
+    groups:
+      terraform-minor-patch:
+        update-types: ["minor", "patch"]
+
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: weekly }

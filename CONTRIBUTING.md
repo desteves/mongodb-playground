@@ -33,3 +33,15 @@ scripts/e2e.sh
 ## Reporting problems
 
 Bugs and ideas: open an issue. Security problems: see [SECURITY.md](SECURITY.md); do not open a public issue.
+
+## Dependency updates
+
+Dependabot opens grouped pull requests weekly (`.github/dependabot.yml`). Every merge to `main` deploys to production and
+the pull requests themselves have no checks, so try one on your machine first:
+
+```bash
+scripts/try-pr.sh <number>          # Rust and web checks for what the PR touches
+scripts/try-pr.sh <number> --full   # plus the Atlas-backed and browser tests
+```
+
+Merge it with `gh pr merge <number> --squash --delete-branch` once it passes.
