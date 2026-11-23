@@ -23,7 +23,7 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use playground_core::PlaygroundError;
 use serde_json::{json, Value};
 use sha2::Sha256;

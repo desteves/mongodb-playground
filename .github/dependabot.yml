@@ -19,6 +19,10 @@ updates:
     directory: /web
     schedule: { interval: weekly }
     open-pull-requests-limit: 5
+    ignore:
+      # svelte-check (4.x) supports TypeScript 5 and 6 only: a TypeScript 7 bump breaks `npm ci`. Lift this once it does.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
     groups:
       # Vite and its Svelte plugin must match.
       vite:
