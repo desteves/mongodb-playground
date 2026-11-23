@@ -67,7 +67,7 @@ Everything the page does is an API call. See the [REST API]({{origin}}/docs/api.
 ## Keep your data
 
 The playground uses throwaway databases. To keep data, create your own cluster and run the playground against it:
-[Run it yourself]({{origin}}/docs/run-it-yourself.md). Free Atlas cluster: https://www.mongodb.com/cloud/atlas/register
+[Run it yourself]({{origin}}/docs/run-it-yourself.md). [Free Atlas cluster](https://www.mongodb.com/cloud/atlas/register).
 
 ## Cheat sheet
 

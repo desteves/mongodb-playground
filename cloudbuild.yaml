@@ -15,7 +15,8 @@ steps:
         cargo fmt --all -- --check || echo "note: rustfmt differences (not blocking yet)"
         cargo clippy --workspace --exclude playground-desktop --all-targets -- -D warnings
         cargo test --workspace --exclude playground-desktop
-    env: ['CARGO_HOME=/workspace/.cargo-home', 'CARGO_TARGET_DIR=/workspace/.cargo-target']
+    # A longer run of the validator fuzz test than the quick default.
+    env: ['CARGO_HOME=/workspace/.cargo-home', 'CARGO_TARGET_DIR=/workspace/.cargo-target', 'FUZZ_ITERATIONS=20000']
 
   # 2. Web: typecheck and build (the image build repeats the build; this fails fast first).
   - id: web-checks
@@ -74,6 +75,8 @@ steps:
   # 4. Deploy the exact SHA. Secrets, networking and scaling are Terraform's; this only swaps the image.
   - id: deploy
     name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
+    # Deploy as soon as the image is pushed; the slow cargo-audit step only reports and must not delay it.
+    waitFor: ['push']
     entrypoint: gcloud
     args:
       - run

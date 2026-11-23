@@ -222,3 +222,39 @@ test('a running query shows a spinner and the seconds elapsed', async ({ page })
   await expect(editor(page, 2)).toContainText('name: "Linus"');
   await expect(page.getByRole('progressbar')).toHaveCount(0);
 });
+
+test('the prebuilt dataset shows read-only in the Data panel', async ({ page }) => {
+  // Pretend sample data is on and the prebuilt dataset exists (the local test server has neither).
+  const definition = {
+    database: 'sample_playground',
+    collections: [
+      { name: 'movies', documents: [{ title: 'Alien', year: 1979 }], searchIndex: { name: 'default', definition: { mappings: { dynamic: true } } } },
+      { name: 'items', documents: [{ name: 'red apple', embedding: [0.9, 0.1, 0] }], searchIndex: { name: 'vector_index', type: 'vectorSearch', definition: { fields: [{ type: 'vector', path: 'embedding', numDimensions: 3, similarity: 'cosine' }] } } },
+    ],
+  };
+  await page.route('**/api/v1/limits', async (route) => {
+    const res = await route.fetch();
+    const body = await res.json();
+    await route.fulfill({ response: res, json: { ...body, sampleSupported: true, features: { ...body.features, sampleData: true } } });
+  });
+  await page.route('**/api/v1/examples', async (route) => {
+    const res = await route.fetch();
+    const body = await res.json();
+    const prebuilt = { id: 'prebuilt-atlas-search', title: 'Atlas Search on a prebuilt dataset', kind: 'example', script: 'db.movies.find()', datasource: { sample: 'sample_playground' } };
+    await route.fulfill({ response: res, json: [...body, prebuilt] });
+  });
+  await page.route('**/api/v1/samples', (route) =>
+    route.fulfill({ json: { available: true, databases: [{ name: 'sample_playground', collections: ['movies', 'items'], definition: true }] } }),
+  );
+  await page.route('**/api/v1/samples/sample_playground', (route) => route.fulfill({ json: definition }));
+
+  await page.goto('/?example=prebuilt-atlas-search');
+  const data = page.getByTestId('sample-data');
+  await expect(data).toContainText('db = {');
+  await expect(data).toContainText('title: "Alien"');
+  await expect(data).toContainText('vectorSearchIndexes');
+  // Read-only: the editor does not accept typing, and there are no Undo / Clear controls for it.
+  await expect(data.locator('.cm-content')).toHaveAttribute('contenteditable', 'false');
+  await expect(page.getByRole('button', { name: 'Clear the data panel' })).toHaveCount(0);
+  await expect(page.locator('[data-pane="data"] .desc')).toContainText('read-only');
+});

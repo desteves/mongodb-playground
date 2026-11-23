@@ -43,7 +43,7 @@ welcome, from people and from agents.
 
 ## Use your own cluster
 
-Want your data to stick around? Create a free Atlas cluster: https://www.mongodb.com/cloud/atlas/register, then
+Want your data to stick around? [Create a free Atlas cluster](https://www.mongodb.com/cloud/atlas/register), then
 [run the playground against it]({{origin}}/docs/run-it-yourself.md).
 
 ## Terms of use

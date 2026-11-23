@@ -180,8 +180,9 @@ whole thing off. A separate database user can write only to this database.
    `X-RateLimit-*` headers), a higher tier for browsers that pass Cloudflare Turnstile, and Cloudflare and
    Cloud Armor rules in front.
 5. **Origin lock.** Cloudflare sets a secret `X-Origin-Key` header that clients cannot supply, plus an IP
-   allowlist of Cloudflare ranges. Cloud Armor starts in preview mode (`enforce_origin_restriction`) so a wrong
-   rule cannot take the site down.
+   allowlist of Cloudflare ranges. It is rolled out in two stages so a wrong rule cannot take the site down: the
+   header check first (`enforce_origin_key`), the IP ranges after (`enforce_origin_restriction`); each starts in
+   preview mode and is enforced only after the logs show no real traffic would be denied.
 6. **WAF exceptions.** Query bodies look like attacks to generic XSS and SQL-injection rules, so
    `/api/v1/run`, `/explain` and `/share` are excluded from them; the application-side allowlist is the real
    control.

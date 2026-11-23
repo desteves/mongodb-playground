@@ -70,6 +70,16 @@ resource "cloudflare_zone_settings_override" "tls" {
     tls_1_3          = "on"
     http3            = "on"
     brotli           = "on"
+    # HSTS: browsers use HTTPS only for this host for a month. Raise max_age (up to a year) once nothing needs the
+    # site to be reachable over plain HTTP or with an invalid certificate (for example, re-issuing the origin
+    # certificate with the proxy off). No preload and no subdomains on purpose.
+    security_header {
+      enabled            = true
+      max_age            = 2592000
+      include_subdomains = false
+      preload            = false
+      nosniff            = true
+    }
   }
 }
 
@@ -201,7 +211,7 @@ resource "cloudflare_ruleset" "cache" {
 
   rules {
     action      = "set_cache_settings"
-    expression  = "(http.request.uri.path in {\"/favicon.svg\" \"/robots.txt\" \"/sitemap.xml\"})"
+    expression  = "(http.request.uri.path in {\"/favicon.svg\" \"/robots.txt\" \"/sitemap.xml\" \"/og.png\" \"/og.svg\" \"/theme-init.js\"})"
     description = "Static root files: 1 hour"
     enabled     = true
     action_parameters {

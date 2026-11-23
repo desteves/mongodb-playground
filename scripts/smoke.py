@@ -254,6 +254,21 @@ if limits.get("features", {}).get("sampleData"):
     s, _, b = call("POST", "/api/v1/run", {"mode": "insert", "collection": "movies", "datasource": {"sample": "sample_mflix"}, "query": {"document": {}}})
     check("sample data is read-only", s == 422 and "read-only" in b["error"]["message"], (s, b))
 
+# The prebuilt dataset publishes its documents and index definitions.
+if limits.get("features", {}).get("sampleData"):
+    s, _, listing = call("GET", "/api/v1/samples")
+    with_def = [d["name"] for d in listing.get("databases", []) if d.get("definition")]
+    if with_def:
+        s, _, b = call("GET", f"/api/v1/samples/{with_def[0]}")
+        cols = {c["name"]: c for c in b.get("collections", [])} if s == 200 else {}
+        check("the prebuilt dataset publishes its documents and index definitions",
+              s == 200 and {"movies", "items"} <= set(cols) and all(c["documents"] and c["searchIndex"]["definition"] for c in cols.values()), (s, b))
+    s, _, b = call("GET", "/api/v1/samples/sample_mflix")
+    check("a database without a built-in definition is a 404", s == 404 and b["error"]["code"] == "not_found", (s, b))
+else:
+    s, _, b = call("GET", "/api/v1/samples/sample_playground")
+    check("the dataset definition is 404 when sample data is off", s == 404, (s, b))
+
 # --- search index -----------------------------------------------------------------------------
 search_req = {"mode": "aggregate", "collection": "movies",
               "collections": {"movies": [{"title": "The Matrix", "plot": "a hacker learns reality is simulated"}, {"title": "Alien", "plot": "a deadly creature in space"}]},

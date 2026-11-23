@@ -2,42 +2,84 @@
 
 Open work, newest decisions first. Cross items off (or delete them) when they ship.
 
-## 1. Turn on the Cloud Armor origin lock (`enforce_origin_restriction`)
+## 0. Open right now (as of 2026-11-23)
 
-**Status:** tabled. Right now the origin rules only *log* (preview): Cloud Armor records which requests it would
-block and blocks nothing. Enforcing makes the load balancer accept only requests that come through our Cloudflare
-zone (the secret `X-Origin-Key` header **and** a published Cloudflare IP range). Cloud Run's own ingress already
-accepts only the load balancer, so this is a second lock. A wrong rule is an outage, so check first.
+- [ ] **Cloud Armor stage 2** (`enforce_origin_restriction = true`): after a few clean days of stage 1, re-run
+  `python3 scripts/armor-report.py 24`, then follow section 1.
+- [ ] **Prebuilt example datasets are not confirmed live.** `FEATURE_SAMPLE_DATA` is on, but check that
+  `curl -s https://mongoplayground.com/api/v1/examples | grep -o '"id": *"prebuilt-[a-z-]*"'` lists both
+  `prebuilt-atlas-search` and `prebuilt-vector-search`. If not, `sample_playground` was never seeded: create a temporary
+  Atlas admin user, run `MONGODB_ADMIN_URI='<uri>' cargo run -p playground-api -- seed-examples`, wait up to ten
+  minutes (the sample database list is cached), re-check, then delete the temporary user.
+- [ ] **Verify the alert email channel.** Google sent a verification email to the `notification_email` address for the
+  new channel; click it, or the "Playground is down" and share-storage alerts will not arrive.
+- [ ] **Soft 404s.** Unknown paths (for example `/wp-includes/wlwmanifest.xml`) return `200` with the app's HTML
+  because the single-page app answers every path. Return a real `404` (with the same page) for paths that are not a
+  known route, so search engines do not index endless pages. The "unknown pages" e2e test needs the matching change.
+- [ ] **Raise HSTS** from 1 month to 6 or 12 months once nothing needs the site reachable without HTTPS (for example
+  re-issuing the origin certificate with the proxy off); see `infra/modules/cloudflare/main.tf`.
+- [ ] **Uncommitted local changes:** Cloud Build edits (deploy waits only for the image push, `FUZZ_ITERATIONS`), the
+  validator fuzz test, Terraform (HSTS, `/og.png` cache rule, drift fix, two-stage origin lock, alerts), the desktop
+  script (`scripts/dev-desktop.sh`), the new `scripts/armor-report.py`, and the README, MASTER_PLAN and todo updates.
+- [ ] **Desktop app:** launch it once (`scripts/dev-desktop.sh`); it compiles but has never been opened.
+- [x] Done today: Cloud Armor stage 1 is enforcing and verified (direct request `403`, site healthy, no real traffic
+  denied, the Cloud Scheduler rollup job still succeeds).
 
-**Before enforcing**
+## 1. Turn on the Cloud Armor origin lock (two stages)
+
+**Status:** stage 1 is ON (applied 2026-11-23): requests without our secret `X-Origin-Key` get `403` at the load
+balancer. Verified: the direct request to the load balancer IP returns `403` (it took a few minutes to propagate),
+`/readyz` through Cloudflare returns `ok`, and `scripts/armor-report.py 3` showed no real traffic missing the key.
+Stage 2 (Cloudflare IP ranges, `enforce_origin_restriction`) is still in preview: do it after a few clean days.
+Cloud Run's own ingress already accepts only the load balancer, so the lock is a second
+layer: it makes the load balancer accept only requests that came through our Cloudflare zone. A wrong rule is an
+outage, so it goes in two stages, each a one-line change you can roll back in a minute or two.
+
+- **Stage 1, `enforce_origin_key = true`:** deny any request without our secret `X-Origin-Key` header (Cloudflare adds
+  it to every proxied request). Nobody can reach the load balancer directly. This does not depend on Cloudflare's IP
+  list, so it cannot lock out visitors over a stale list. It is nearly all of the benefit.
+- **Stage 2, `enforce_origin_restriction = true`** (includes stage 1): also deny every source outside Cloudflare's
+  published ranges (defence in depth if the key ever leaked). Needs the ranges in Terraform to be current.
+
+**Already checked (2026-11-23):** the 15 IPv4 and 7 IPv6 ranges in `infra/modules/edge/main.tf` match
+https://www.cloudflare.com/ips-v4 and `/ips-v6` exactly. Re-check before stage 2 if time has passed:
+`python3 scripts/check-cloudflare-ips.py` (it needs network access to cloudflare.com). The other callers of the site
+all use the public domain, so they pass through Cloudflare and carry the header: the Cloud Scheduler jobs
+(`https://<domain>/internal/jobs/...`) and the uptime check (`/readyz` on the domain).
+
+**Before stage 1** (done)
 
 1. Generate real traffic: open https://mongoplayground.com, run a query, press Share.
-2. Check that the Cloudflare ranges in Terraform are current (a missing range would lock visitors out):
-   `python3 scripts/check-cloudflare-ips.py`. It had a user-agent bug (HTTP 403 from Cloudflare) that is fixed;
-   re-run it. If it still cannot fetch, compare https://www.cloudflare.com/ips-v4 and `/ips-v6` with
-   `infra/modules/edge/main.tf` by hand.
-3. Read what Armor decided: `python3 scripts/armor-report.py 24`. For real traffic both numbers must be zero:
-   preview denies (wrong or missing origin key) and default-rule hits (source not in a Cloudflare range). Your own
-   direct `curl --resolve` tests to the load balancer IP are expected to show up; that is what the lock blocks.
-4. Raw log queries, if you want to look yourself:
-   - `gcloud logging read 'resource.type="http_load_balancer" AND jsonPayload.previewSecurityPolicy.outcome="DENY"' --project playground-515215 --freshness=24h --limit=20 --format="table(timestamp,httpRequest.remoteIp,httpRequest.requestUrl,httpRequest.status)"`
-   - `gcloud logging read 'resource.type="http_load_balancer" AND jsonPayload.enforcedSecurityPolicy.priority=2147483647' --project playground-515215 --freshness=24h --limit=20 --format="table(timestamp,httpRequest.remoteIp,httpRequest.requestUrl,httpRequest.status)"`
+2. Read what Armor decided: `python3 scripts/armor-report.py 24`. For real traffic the number of preview denies
+   (wrong or missing origin key) must be zero. Your own direct `curl --resolve` tests to the load balancer IP are
+   expected to show up; that is what the lock blocks.
+3. Raw log query, if you want to look yourself:
+   `gcloud logging read 'resource.type="http_load_balancer" AND jsonPayload.previewSecurityPolicy.outcome="DENY"' --project playground-515215 --freshness=24h --limit=20 --format="table(timestamp,httpRequest.remoteIp,httpRequest.requestUrl,httpRequest.status)"`
 
-**Enforce (only when step 3 is clean)**
+**Stage 1** (done)
 
-1. `echo 'enforce_origin_restriction = true' >> infra/terraform.tfvars`
-2. `scripts/tf.sh plan`: it should change only the Cloud Armor policy (rule 2100 leaves preview, the default rule
-   goes from `allow` to `deny(403)`). Stop if anything else changes.
+1. `echo 'enforce_origin_key = true' >> infra/terraform.tfvars`
+2. `scripts/tf.sh plan`: it should change only the Cloud Armor policy (rule 2100 leaves preview). Stop if anything else
+   changes.
 3. `scripts/tf.sh apply`
+4. Verify: `curl -s https://mongoplayground.com/readyz` returns `ok`, and the direct path is refused:
+   `curl -sk --resolve mongoplayground.com:443:136.68.121.105 https://mongoplayground.com/readyz -o /dev/null -w "%{http_code}\n"`
+   returns `403`. Also run a query and press Share in the browser, and check the next scheduler run
+   (`gcloud scheduler jobs run playground-rollup --location us-central1`) and the uptime check stay green.
 
-**Verify**
+**Stage 2** (after stage 1 has run cleanly for a few days)
 
-- `curl -s https://mongoplayground.com/readyz` returns `ok`.
-- `curl -sk --resolve mongoplayground.com:443:136.68.121.105 https://mongoplayground.com/readyz -o /dev/null -w "%{http_code}\n"`
-  returns `403` (the direct path, bypassing Cloudflare, is now refused).
+1. Before this, the default-rule hits must be zero for real traffic:
+   `gcloud logging read 'resource.type="http_load_balancer" AND jsonPayload.enforcedSecurityPolicy.priority=2147483647' --project playground-515215 --freshness=24h --limit=20 --format="table(timestamp,httpRequest.remoteIp,httpRequest.requestUrl,httpRequest.status)"`
+   (this means a source outside the Cloudflare ranges got through the allow rules).
+2. `echo 'enforce_origin_restriction = true' >> infra/terraform.tfvars`, then `scripts/tf.sh plan` (only the default rule
+   goes from `allow` to `deny(403)`), then `scripts/tf.sh apply`, then repeat the verification above.
 
-**Roll back (a minute or two):** set `enforce_origin_restriction = false` in `infra/terraform.tfvars`, then
+**Roll back (a minute or two):** set the variable you turned on back to `false` in `infra/terraform.tfvars`, then
 `scripts/tf.sh plan` and `scripts/tf.sh apply`.
+
+**Rotating the origin key** (`scripts/tf.sh plan -replace=random_password.origin_key`): the Cloudflare rule and the
+Armor rule both change in one apply, so expect a few seconds of 403s while they converge. Do it off-peak.
 
 Related housekeeping still open: delete or downgrade the Project Owner Atlas key, rotate every key and token that
 was pasted into chats, ask GitHub to purge commit `f44463f1a2e4ca8eeb5d8b75f14a8d37130a1e91`, and enable secret
@@ -148,9 +190,9 @@ Ordered roughly by value for effort. Each item says why it matters here.
   rate. Rely on the Cloudflare rate-limit rules as the real limit (tune per endpoint: `/api/v1/run` strict,
   discovery documents generous), or move the bucket to Memorystore. The search-run semaphore has the same
   per-instance behaviour; size `max_instances` times the per-instance cap against what the M10 can build.
-- [ ] **Cloudflare WAF and bots.** Enable the free managed ruleset and Bot Fight Mode, with a skip rule for
+- [~] **Cloudflare WAF and bots.** Decided: HSTS is set in Terraform (1 month, no preload, no subdomains; raise it later). The Free Managed Ruleset is on by default on the Free plan; the larger Cloudflare Managed and OWASP rulesets need Pro. Bot Fight Mode stays OFF: on the Free plan it cannot be skipped by rules, so it would challenge API and agent clients (this site is built for them). Super Bot Fight Mode (Pro) can be skipped for `/api/`, `/mcp` and `.md`. Original note: Enable the free managed ruleset and Bot Fight Mode, with a skip rule for
   `/api/v1/*` and `/mcp` (query bodies look like attacks; the same reason Cloud Armor excludes them).
-- [ ] **Validator hardening.** Top-level aggregation stages are now an allowlist (`ALLOWED_STAGES`, denied by default). Stages nested in `$lookup`, `$unionWith` and `$facet` are checked against the same allowlist. A corpus test (every documented stage is allowed or denied) and a deterministic fuzz of hidden forbidden operators now run in the unit tests. Still to do: run a longer fuzz in CI. Cross-database protection rests on the parser, because Atlas roles cannot match
+- [ ] **Validator hardening.** Top-level aggregation stages are now an allowlist (`ALLOWED_STAGES`, denied by default). Stages nested in `$lookup`, `$unionWith` and `$facet` are checked against the same allowlist. A corpus test (every documented stage is allowed or denied) and a deterministic fuzz of hidden forbidden operators now run in the unit tests. The Cloud Build run uses `FUZZ_ITERATIONS=20000`. Cross-database protection rests on the parser, because Atlas roles cannot match
   `pg_*` names. Confirm unknown aggregation stages and operators are denied by default (an allowlist, not a
   denylist), add fuzzing and a corpus test of every operator in the MongoDB docs, and run it in CI. Consider a
   separate Atlas project for shares and stats so a validator bug cannot reach them.
@@ -178,13 +220,13 @@ Ordered roughly by value for effort. Each item says why it matters here.
   Render the first N KB in the page with a "download the full result" action; stream large responses.
 - [x] **Release build profile.** Done (`[profile.release]` in `Cargo.toml`: thin LTO, one codegen unit, strip). Original note: `Cargo.toml` has no `[profile.release]`: add `lto = "thin"`, `codegen-units = 1`,
   `strip = true` for a smaller, faster binary and a quicker cold start. The container already runs as a non-root user.
-- [ ] **Per-run database cost.** Each run creates and drops a database, which gets expensive on WiredTiger under
+- [-] **Per-run database cost.** Decided not to load test for now. Original note: Each run creates and drops a database, which gets expensive on WiredTiger under
   heavy load. If the load test shows stalls, switch to a few reusable "slot" databases with per-run collections.
   Re-run `scripts/loadtest-with-atlas-local.sh` against an M10 first to find the real limit.
-- [ ] **Tune concurrency.** Cloud Run concurrency equals the connection pool size (5). Load-test 8 to 16 with a
+- [-] **Tune concurrency.** Decided not to load test for now. Original note: Cloud Run concurrency equals the connection pool size (5). Load-test 8 to 16 with a
   pool of 10 and pick the knee.
 - [ ] **Observability.** SLOs and alerts on p95 latency, 5xx rate, Atlas connections, disk and replication lag;
   OpenTelemetry traces to Cloud Trace. The uptime check on `/readyz` exists.
-- [ ] **Cost.** The load balancer and the M10 are the fixed costs. Dropping the load balancer (Cloud Run behind
+- [-] **Cost.** Decided: keep the load balancer (it carries Cloud Armor and the origin lock). The load balancer and the M10 are the fixed costs. Dropping the load balancer (Cloud Run behind
   Cloudflare directly) saves money but loses Cloud Armor; decide after the origin lock is enforced.
 

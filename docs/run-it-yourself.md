@@ -4,7 +4,7 @@ Use the hosted playground, run it on your machine against a local MongoDB, or po
 
 > Generated from `crates/core/src/guide.json` by `scripts/gen-run-it-yourself.py` (also served at `GET /api/v1/guide`, by the MCP tool `get_setup_guide`, and as Markdown at `/docs/run-it-yourself.md`). Replace `{origin}` with the site you are using, for example `https://mongoplayground.com` or `http://localhost:8080`.
 
-**Free-forever Atlas cluster (M0, 512 MB, no credit card):** [https://www.mongodb.com/cloud/atlas/register?utm_campaign=devrel&utm_source=third-party-content&utm_medium=cta&utm_content=mongodb-playground&utm_term=diana.esteves](https://www.mongodb.com/cloud/atlas/register?utm_campaign=devrel&utm_source=third-party-content&utm_medium=cta&utm_content=mongodb-playground&utm_term=diana.esteves)
+**Free-forever Atlas cluster (M0, 512 MB, no credit card):** [Create a free Atlas cluster](https://www.mongodb.com/cloud/atlas/register?utm_campaign=devrel&utm_source=third-party-content&utm_medium=cta&utm_content=mongodb-playground&utm_term=diana.esteves)
 
 ## Which one should I use?
 
@@ -22,13 +22,13 @@ Use the hosted playground, run it on your machine against a local MongoDB, or po
 
 Nothing to install. The web app, the REST API and the MCP server are the same service.
 
-1. Open the web app: <{origin}>
+1. [Open the web app]({origin})
 2. Run a script through the API
 
    ```bash
    curl -s -X POST {origin}/api/v1/run -H 'content-type: application/json' -d '{"script": "db.collection.find({age: {$gt: 40}})", "config": "db = { collection: { documents: [{name: \"Ada\", age: 36}, {name: \"Linus\", age: 55}] } }"}'
    ```
-3. Machine-readable docs: <{origin}/llms.txt>
+3. [Machine-readable docs]({origin}/llms.txt)
 
 ### Use it from an agent (MCP)
 
@@ -44,8 +44,8 @@ A stateless Streamable HTTP MCP server. Tools: run_query, validate_query, explai
    ```bash
    {"mcpServers": {"mongodb-playground": {"type": "http", "url": "{origin}/mcp"}}}
    ```
-3. Discovery card: <{origin}/.well-known/mcp.json>
-4. OpenAPI 3.1: <{origin}/api/v1/openapi.json>
+3. [Discovery card]({origin}/.well-known/mcp.json)
+4. [OpenAPI 3.1]({origin}/api/v1/openapi.json)
 
 ## Run it on your machine
 
@@ -68,7 +68,7 @@ A local MongoDB in Docker with Atlas Search and Vector Search, then the API and 
    ```bash
    MONGODB_URI='mongodb://localhost:27017/?directConnection=true' cargo run -p playground-api
    ```
-4. Open it: <http://localhost:8080>
+4. [Open it](http://localhost:8080)
 5. Delete the deployment when you are done
 
    ```bash
@@ -84,7 +84,7 @@ The API, the web app and an Atlas Local MongoDB (search works) in one command.
    ```bash
    docker compose up --build
    ```
-2. Open it: <http://localhost:8080>
+2. [Open it](http://localhost:8080)
 
 ### Desktop app (Tauri)
 
@@ -102,7 +102,7 @@ Runs queries in-process against a local MongoDB. No network service.
 
 A free cluster in your own Atlas account: 512 MB, no credit card, one per project. It stays until you delete it, so your data persists.
 
-1. Register for Atlas: <https://www.mongodb.com/cloud/atlas/register?utm_campaign=devrel&utm_source=third-party-content&utm_medium=cta&utm_content=mongodb-playground&utm_term=diana.esteves>
+1. [Register for Atlas](https://www.mongodb.com/cloud/atlas/register?utm_campaign=devrel&utm_source=third-party-content&utm_medium=cta&utm_content=mongodb-playground&utm_term=diana.esteves)
 2. Or from the terminal: sign in and create a free cluster
 
    ```bash
@@ -148,7 +148,7 @@ A temporary free Atlas cluster created from the terminal. Atlas pauses it 2 days
    ```bash
    atlas api ephemeralClusters createEphemeralCluster --file request.json
    ```
-3. Request body reference (preview API): <https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/preview/operation/operation-createephemeralcluster?utm_campaign=devrel&utm_source=third-party-content&utm_medium=cta&utm_content=mongodb-playground&utm_term=diana.esteves>
+3. [Request body reference (preview API)](https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/preview/operation/operation-createephemeralcluster?utm_campaign=devrel&utm_source=third-party-content&utm_medium=cta&utm_content=mongodb-playground&utm_term=diana.esteves)
 4. Point the API at it, using the connection string from the response
 
    ```bash

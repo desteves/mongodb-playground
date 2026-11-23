@@ -1,9 +1,15 @@
 <script lang="ts">
   import CodeBlock from '../lib/CodeBlock.svelte';
+  import { tick } from 'svelte';
   import { site, registerUrl, mongodbUrl } from '../lib/site.svelte';
+  import { scrollToHash } from '../lib/ui.svelte';
 
   const g = $derived(site.guide);
-  const label = (u: string) => u.replace(/^https?:\/\//, '');
+
+  // Opened with a #fragment (a shared link): the options render after the guide loads, so scroll once they are there.
+  $effect(() => {
+    if (g) tick().then(() => scrollToHash(location.hash));
+  });
 </script>
 
 <div class="page">
@@ -32,9 +38,12 @@
       <ol>
         {#each o.steps as s}
           <li>
-            {s.label}
+            {#if s.url}
+              <a href={mongodbUrl(s.url)} target="_blank" rel="noopener">{s.label} ↗</a>
+            {:else}
+              {s.label}
+            {/if}
             {#if s.command}<CodeBlock code={s.command} />{/if}
-            {#if s.url}<a href={mongodbUrl(s.url)} target="_blank" rel="noopener">{label(s.url)} ↗</a>{/if}
           </li>
         {/each}
       </ol>

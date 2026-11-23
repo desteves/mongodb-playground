@@ -66,12 +66,21 @@ const PAGES = ['/', '/docs/quickstart', '/docs/api', '/docs/mcp', '/docs/run-it-
 export const isPlayground = (p: string) => p === '/' || /^\/p\/[0-9A-Za-z-]+$/.test(p);
 export const isKnownPath = (p: string) => PAGES.includes(p) || isPlayground(p);
 
+/** Scroll to the element a `#fragment` names (the page may still be rendering, so wait a frame). */
+export function scrollToHash(hash: string) {
+  const id = decodeURIComponent(hash.replace(/^#/, ''));
+  if (!id) return;
+  requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({ block: 'start' }));
+}
+
 export function navigate(to: string, push = true) {
   const url = new URL(to, location.origin);
   if (push) history.pushState({}, '', url.pathname + url.search + url.hash);
   route.path = url.pathname;
   ui.drawer = false;
-  window.scrollTo(0, 0);
+  // A link with a #fragment goes to that spot (for example "Which one should I use?"); any other link starts at the top.
+  if (url.hash) scrollToHash(url.hash);
+  else window.scrollTo(0, 0);
 }
 
 /** One click handler for the whole app: same-site links to known pages navigate without a reload. */

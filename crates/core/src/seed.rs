@@ -32,6 +32,18 @@ pub fn database_name() -> String {
         .unwrap_or_else(|| "sample_playground".into())
 }
 
+/// The prebuilt dataset as the playground shows it: its documents and each collection's search index
+/// definition (the seed's own probe queries are left out).
+pub fn definition() -> serde_json::Value {
+    let mut v: serde_json::Value = serde_json::from_str(DATA).unwrap_or_default();
+    for c in v["collections"].as_array_mut().into_iter().flatten() {
+        if let Some(o) = c.as_object_mut() {
+            o.remove("probe");
+        }
+    }
+    v
+}
+
 /// Insert (replacing what is there) the example documents and create each search index if it is
 /// missing, waiting until it is queryable. Safe to run again.
 pub async fn seed_examples(uri: &str) -> Result<SeedReport> {
@@ -118,6 +130,17 @@ async fn wait_for_probe(db: &mongodb::Database, coll: &str, pipeline: Vec<Bson>)
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_definition_has_documents_and_indexes_but_no_probes() {
+        let d = definition();
+        assert_eq!(d["database"], database_name());
+        for c in d["collections"].as_array().unwrap() {
+            assert!(c.get("probe").is_none());
+            assert!(!c["documents"].as_array().unwrap().is_empty());
+            assert!(c["searchIndex"]["definition"].is_object());
+        }
+    }
 
     #[test]
     fn the_data_is_well_formed() {

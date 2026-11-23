@@ -94,9 +94,15 @@ variable "max_instances" {
   default     = 20
 }
 
+variable "enforce_origin_key" {
+  type        = bool
+  description = "Stage 1 of the origin lock: deny requests that lack our secret X-Origin-Key header (so nothing reaches the load balancer except through our Cloudflare zone). Does not depend on Cloudflare's IP ranges, so it cannot lock out visitors over a stale list. Stage 2 is enforce_origin_restriction."
+  default     = false
+}
+
 variable "enforce_origin_restriction" {
   type        = bool
-  description = "false = Cloud Armor origin rules only log (preview). Flip to true after confirming in the logs that real traffic matches; a wrong rule is an outage."
+  description = "Stage 2 of the origin lock (includes stage 1): also deny every source outside Cloudflare's IP ranges. false = those rules only log (preview). Flip to true after confirming in the logs that real traffic matches; a wrong rule is an outage."
   default     = false
 }
 

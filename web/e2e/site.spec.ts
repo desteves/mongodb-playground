@@ -99,3 +99,22 @@ test('About links to the GitHub repository', async ({ page }) => {
   const link = page.getByRole('link', { name: /github\.com\/desteves\/mongodb-playground/ });
   await expect(link).toHaveAttribute('href', 'https://github.com/desteves/mongodb-playground/tree/main');
 });
+
+test('"Which one should I use?" links jump to their option, and links read as words, not URLs', async ({ page }) => {
+  await page.goto('/docs/run-it-yourself');
+  await page.getByRole('heading', { name: 'Which one should I use?' }).waitFor();
+
+  // Each entry scrolls its option into view and puts the fragment in the address.
+  await page.locator('.choose a', { hasText: 'Free-forever Atlas cluster' }).click();
+  await expect(page).toHaveURL(/#atlas-free$/);
+  await expect(page.locator('#atlas-free')).toBeInViewport();
+
+  // A direct link with a fragment lands there too.
+  await page.goto('/docs/run-it-yourself#docker');
+  await expect(page.locator('#docker')).toBeInViewport();
+
+  // No link is shown as a bare URL; the Atlas sign-up step reads as its label.
+  const texts = await page.locator('.page a').allTextContents();
+  expect(texts.filter((t) => /^\s*(https?:\/\/|www\.)/.test(t))).toEqual([]);
+  await expect(page.locator('#atlas-free a', { hasText: 'Register for Atlas' })).toBeVisible();
+});

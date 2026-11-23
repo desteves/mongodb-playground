@@ -1166,7 +1166,11 @@ mod tests {
             seed ^= seed << 17;
             seed % n
         };
-        for _ in 0..500 {
+        let iterations: u32 = std::env::var("FUZZ_ITERATIONS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(500);
+        for _ in 0..iterations {
             let bad = FORBIDDEN[next(FORBIDDEN.len() as u64) as usize];
             let mut value = json!({ bad: next(100) });
             for _ in 0..next(6) {

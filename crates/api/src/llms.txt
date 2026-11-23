@@ -136,6 +136,9 @@ aggregate, countDocuments, distinct (and their .explain()) against an Atlas samp
 and index statements are rejected. Each statement returns at most limits.sampleMaxResults (1000) documents and sets
 "truncated": true when the cap is hit. GET /api/v1/samples lists what is available (limits.sampleSupported);
 GET /api/v1/samples/<db>/<collection> returns 3 random documents so you can see the field names.
+The prebuilt, already indexed dataset sample_playground (movies with an Atlas Search index, items with a Vector Search
+index; the examples prebuilt-atlas-search and prebuilt-vector-search use it) has its documents and index definitions at
+GET /api/v1/samples/sample_playground (listed with "definition": true in GET /api/v1/samples).
 
 ## Atlas Search and Vector Search
 

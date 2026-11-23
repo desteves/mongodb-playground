@@ -24,7 +24,7 @@ sandbox, MongoDB MCP server.
 
 **Status:** live. The core, API, web UI, MCP server, share links, explain, stats, Terraform and the Cloud Build
 pipeline are deployed. Rust, HTTP smoke, browser, load and abuse tests pass against an Atlas CLI local deployment.
-Not done yet: the Cloud Armor origin lock is still in preview (see [docs/todo.md](docs/todo.md)), the Tauri app has
+The Cloud Armor origin lock is enforcing for the secret header (stage 1); the Cloudflare-IP stage is still in preview (see [docs/todo.md](docs/todo.md)). Not done yet: the Tauri app has
 not been launched, and the Turnstile flow has only been exercised against the live site.
 
 ## Run it locally
@@ -126,7 +126,8 @@ single-operation form (`mode`/`collection`/`query`) still works; see `/llms.txt`
   indexes) builds `sample_playground`: `movies` with an Atlas Search index and `items` with a Vector Search index, so the
   two "prebuilt" examples answer instantly instead of waiting for an index build. They are read through the sample-data
   path, so they appear when `FEATURE_SAMPLE_DATA=1` and the sample user can read `sample_playground`
-  (the Terraform default does). The inline examples keep working without any of it.
+  (the Terraform default does). Opening one shows the dataset read-only in the Data panel (documents and index
+  definitions, in the panel's own shape); agents get the same from `GET /api/v1/samples/sample_playground`. The inline examples keep working without any of it.
 - **Search index:** `"searchIndexes"` / `"vectorSearchIndexes"` (one of each per collection) build an Atlas Search or
   Vector Search index before the query. Needs Atlas or `atlas local`; plain `mongod` is rejected with a clear message.
 - **Stats:** every interaction writes a small metadata-only event (no query text, no documents, no raw IPs) to the
@@ -188,8 +189,10 @@ against a local MongoDB (default `mongodb://localhost:27017/?directConnection=tr
 in the app config folder). Share links, sample data and stats need the hosted platform and are off.
 
 ```bash
-cd web && npm install && npm run tauri dev      # dev window with hot reload
-cd web && npm run tauri build                   # installer (add icons first: npm run tauri icon <1024px png>)
+scripts/dev-desktop.sh            # local Atlas deployment (Search and Vector Search) + the app with hot reload
+scripts/dev-desktop.sh --no-db    # the app only, against your own MongoDB
+scripts/dev-desktop.sh --delete   # remove the local deployment
+cd web && npm run tauri build     # installer (add icons first: npm run tauri icon <1024px png>)
 ```
 
 ## Deploying
@@ -206,10 +209,10 @@ Security notes for contributors:
 - **Plans stay out of the repo.** Use `scripts/tf.sh plan` and `scripts/tf.sh apply` (they keep the plan outside the
   checkout), and run `scripts/install-hooks.sh` once: the pre-commit hook blocks plan, state, `.env` and `*.tfvars` files and
   anything that looks like a credential.
-- Atlas is reachable only through the private endpoint; the load balancer accepts only Cloudflare traffic (the origin lock is
-  being rolled out, see [docs/todo.md](docs/todo.md)); the app rejects `$where`, `$function`, `$out`, `$merge` and cross-database references.
+- Atlas is reachable only through the private endpoint; the load balancer accepts only Cloudflare traffic (requests without our secret
+  `X-Origin-Key` header get `403`; the Cloudflare IP-range stage is still to come, see [docs/todo.md](docs/todo.md)); the app rejects `$where`, `$function`, `$out`, `$merge` and cross-database references.
 
 ## Not verified yet
 
-- The Cloud Armor origin lock in enforcing mode, and the Turnstile flow beyond the live site.
+- The Cloud Armor IP-range stage (stage 2) in enforcing mode, and the Turnstile flow beyond the live site.
 - The Tauri app compiles but has not been launched.

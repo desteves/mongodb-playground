@@ -228,6 +228,7 @@ async fn main() {
         .route("/export", post(export_handler))
         .route("/verify", post(guard::verify))
         .route("/samples", get(samples))
+        .route("/samples/{db}", get(sample_definition))
         .route("/samples/{db}/{collection}", get(sample_preview))
         .route("/examples", get(examples_handler))
         .route("/guide", get(guide_handler))
@@ -558,11 +559,38 @@ async fn samples(State(s): State<Shared>) -> Result<Json<Value>, ApiError> {
     let names = s.runner.sample_databases().await?;
     let mut databases = Vec::new();
     for name in &names {
-        databases
-            .push(json!({ "name": name, "collections": s.runner.sample_collections(name).await? }));
+        databases.push(json!({
+            "name": name,
+            "collections": s.runner.sample_collections(name).await?,
+            // True for our own prebuilt dataset: GET /api/v1/samples/<db> returns its documents and indexes.
+            "definition": *name == playground_core::seed::database_name(),
+        }));
     }
     Ok(Json(
         json!({ "available": !names.is_empty(), "databases": databases }),
+    ))
+}
+
+/// The documents and search indexes of the prebuilt dataset (`sample_playground`), so a client can show what
+/// the examples query. Only for that dataset, and only when it exists on this cluster.
+async fn sample_definition(
+    State(s): State<Shared>,
+    Path(db): Path<String>,
+) -> Result<Response, ApiError> {
+    let not_found = || {
+        ApiError(PlaygroundError::NotFound(format!(
+            "no built-in definition for `{db}`; GET /api/v1/samples lists the databases that have one"
+        )))
+    };
+    if !s.features.sample_data || db != playground_core::seed::database_name() {
+        return Err(not_found());
+    }
+    if !s.runner.sample_databases().await?.contains(&db) {
+        return Err(not_found());
+    }
+    Ok(cached(
+        CACHE_DISCOVERY,
+        Json(playground_core::seed::definition()),
     ))
 }
 

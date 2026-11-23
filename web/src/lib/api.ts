@@ -144,9 +144,11 @@ export async function loadShared(id: string): Promise<Shared> {
   return data;
 }
 
+import type { SampleDefinition } from './sampledata';
+
 export interface SampleInfo {
   available: boolean;
-  databases: { name: string; collections: string[] }[];
+  databases: { name: string; collections: string[]; definition?: boolean }[];
 }
 
 export async function samples(): Promise<SampleInfo> {
@@ -154,6 +156,14 @@ export async function samples(): Promise<SampleInfo> {
   const res = await fetch('/api/v1/samples');
   if (!res.ok) return { available: false, databases: [] };
   return res.json();
+}
+
+/** The prebuilt dataset's documents and index definitions (only for a database listed with `definition: true`). */
+export async function sampleDefinition(db: string): Promise<SampleDefinition> {
+  const res = await fetch(`/api/v1/samples/${encodeURIComponent(db)}`);
+  const data = await res.json();
+  if (!res.ok) throw new ApiError(data?.error?.code ?? 'error', data?.error?.message ?? `HTTP ${res.status}`);
+  return data;
 }
 
 export async function samplePreview(db: string, collection: string): Promise<unknown[]> {

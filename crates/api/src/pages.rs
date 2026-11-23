@@ -219,12 +219,12 @@ impl PageCtx {
                 out.push_str(&format!("{sum}\n\n"));
             }
             for (i, step) in o["steps"].as_array().into_iter().flatten().enumerate() {
-                out.push_str(&format!("{}. {}\n", i + 1, s(&step["label"])));
+                match step["url"].as_str() {
+                    Some(u) => out.push_str(&format!("{}. [{}]({u})\n", i + 1, s(&step["label"]))),
+                    None => out.push_str(&format!("{}. {}\n", i + 1, s(&step["label"]))),
+                }
                 if let Some(c) = step["command"].as_str() {
                     out.push_str(&format!("   ```bash\n   {c}\n   ```\n"));
-                }
-                if let Some(u) = step["url"].as_str() {
-                    out.push_str(&format!("   {u}\n"));
                 }
                 if let Some(n) = step["note"].as_str() {
                     out.push_str(&format!("   {n}\n"));

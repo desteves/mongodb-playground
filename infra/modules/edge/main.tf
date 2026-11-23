@@ -7,8 +7,9 @@ variable "origin_key" {
   sensitive = true
 }
 variable "enforce_origin_restriction" { type = bool }
+variable "enforce_origin_key" { type = bool }
 
-# Cloudflare's published edge ranges (verified 2026-09-21 against
+# Cloudflare's published edge ranges (verified 2026-11-23 against
 # https://www.cloudflare.com/ips-v4 and /ips-v6). Deliberately not fetched with a data source:
 # that would make `plan` non-deterministic. RE-VERIFY before enabling enforcement: a range we
 # have missed locks real visitors out.
@@ -133,7 +134,9 @@ resource "google_compute_security_policy" "armor" {
   rule {
     action   = "deny(403)"
     priority = 2100
-    preview  = !var.enforce_origin_restriction
+    # Stage 1 (enforce_origin_key) turns this rule on by itself; stage 2 (enforce_origin_restriction) also denies
+    # everything that is not from a Cloudflare range. Stage 2 includes stage 1.
+    preview = !(var.enforce_origin_key || var.enforce_origin_restriction)
     match {
       expr {
         expression = "!has(request.headers['x-origin-key']) || request.headers['x-origin-key'] != '${var.origin_key}'"

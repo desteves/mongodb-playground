@@ -380,6 +380,10 @@
                             "items": {
                               "type": "string"
                             }
+                          },
+                          "definition": {
+                            "type": "boolean",
+                            "description": "True when GET /api/v1/samples/{db} returns the dataset's documents and indexes (the prebuilt sample_playground)."
                           }
                         }
                       }
@@ -388,6 +392,63 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/v1/samples/{db}": {
+      "get": {
+        "operationId": "getSampleDefinition",
+        "summary": "Documents and search indexes of the prebuilt sample dataset",
+        "description": "Only for the prebuilt, already indexed dataset sample_playground (the examples prebuilt-atlas-search and prebuilt-vector-search read it). Returns the documents and the Atlas Search / Vector Search index definition of each collection. 404 for any other database, when sample data is off, or when the dataset has not been seeded.",
+        "parameters": [
+          {
+            "name": "db",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The dataset",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "database": {
+                      "type": "string"
+                    },
+                    "collections": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "documents": {
+                            "type": "array",
+                            "items": {
+                              "type": "object"
+                            }
+                          },
+                          "searchIndex": {
+                            "type": "object"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
           }
         }
       }

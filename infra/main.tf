@@ -130,6 +130,7 @@ module "edge" {
   cloud_run_service          = module.runtime.service_name
   origin_key                 = random_password.origin_key.result
   enforce_origin_restriction = var.enforce_origin_restriction
+  enforce_origin_key         = var.enforce_origin_key
   depends_on                 = [module.runtime]
 }
 

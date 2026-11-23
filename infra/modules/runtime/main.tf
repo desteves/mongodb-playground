@@ -136,6 +136,8 @@ resource "google_cloud_run_v2_service" "api" {
       template[0].annotations,
       client,
       client_version,
+      # Terraform reads this service-level block back as 0 and then wants to remove it: noise, not a change.
+      scaling,
     ]
   }
 }

@@ -20,7 +20,7 @@ out += [
     "by the MCP tool `get_setup_guide`, and as Markdown at `/docs/run-it-yourself.md`). Replace `{origin}` with the site you "
     "are using, for example `https://mongoplayground.com` or `http://localhost:8080`.",
     "",
-    f"**Free-forever Atlas cluster (M0, 512 MB, no credit card):** [{register}]({register})",
+    f"**Free-forever Atlas cluster (M0, 512 MB, no credit card):** [Create a free Atlas cluster]({register})",
     "",
 ]
 by_id = {o["id"]: o for o in g["options"]}
@@ -41,7 +41,7 @@ for o in g["options"]:
         if "command" in s:
             out += [f"{i}. {label}", "", "   ```bash", f"   {s['command']}", "   ```"]
         elif "url" in s:
-            out.append(f"{i}. {label}: <{s['url'].replace('{atlasRegister}', register)}>")
+            out.append(f"{i}. [{label}]({s['url'].replace('{atlasRegister}', register)})")
         else:
             out.append(f"{i}. {label}")
     out.append("")

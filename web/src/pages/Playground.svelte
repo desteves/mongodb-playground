@@ -11,6 +11,7 @@
     isDesktop,
     loadShared,
     run,
+    sampleDefinition,
     samplePreview,
     samples as fetchSamples,
     sendEvent,
@@ -22,6 +23,7 @@
   } from '../lib/api';
   import { download, toCsv } from '../lib/download';
   import { fmt } from '../lib/shellfmt';
+  import { dataPanelText } from '../lib/sampledata';
   import { site } from '../lib/site.svelte';
   import { isDark, route, ui } from '../lib/ui.svelte';
   import { transcript } from '../lib/transcript';
@@ -86,6 +88,8 @@
   let source = $state<'mine' | 'sample'>('mine');
   let sampleInfo = $state<SampleInfo>({ available: false, databases: [] });
   let sampleDb = $state('sample_mflix');
+  // The prebuilt dataset (sample_playground) shown read-only in the Data panel, in the panel's own shape.
+  let sampleText = $state('');
   let dataEd: EditorApi | undefined = $state();
   let shellEd: EditorApi | undefined = $state();
   let exportOpen = $state(false);
@@ -102,6 +106,21 @@
   const templates = $derived(site.examples.filter((e) => e.kind === 'template'));
   const examples = $derived(site.examples.filter((e) => e.kind === 'example'));
   // Sample data is behind a feature flag (FEATURE_SAMPLE_DATA), off by default.
+  const hasDefinition = $derived(source === 'sample' && !!sampleInfo.databases.find((d) => d.name === sampleDb)?.definition);
+  $effect(() => {
+    const db = sampleDb;
+    if (!hasDefinition) {
+      sampleText = '';
+      return;
+    }
+    let live = true;
+    sampleDefinition(db)
+      .then((d) => live && (sampleText = dataPanelText(d)))
+      .catch(() => live && (sampleText = ''));
+    return () => {
+      live = false;
+    };
+  });
   const sampleEnabled = $derived(!isDesktop && !!site.limits?.features.sampleData);
   const origin = typeof location === 'undefined' ? '' : location.origin;
   const anyCollapsed = $derived(Object.values(collapsed).some(Boolean));
@@ -542,10 +561,13 @@
               {@render collapseButton('data', 'Data')}
             </span>
           </div>
-          <p class="desc">{source === 'sample' ? `Atlas sample data (${sampleDb}), read-only.` : DESC.data}</p>
+          <p class="desc">{source === 'sample' ? (hasDefinition ? `Prebuilt dataset (${sampleDb}), read-only: already indexed, so Search queries run at once.` : `Atlas sample data (${sampleDb}), read-only.`) : DESC.data}</p>
         </header>
         {#if source === 'sample'}
           <p class="note">Statements run against <code>{sampleDb}</code>: find, aggregate, countDocuments and distinct only.</p>
+          {#if sampleText}
+            <div class="editor-wrap" data-testid="sample-data"><Editor value={sampleText} dark={isDark()} readonly /></div>
+          {/if}
         {:else}
           <div class="editor-wrap"><Editor bind:this={dataEd} bind:value={config} dark={isDark()} onrun={runDefault} /></div>
         {/if}
