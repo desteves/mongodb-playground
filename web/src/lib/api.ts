@@ -1,3 +1,4 @@
+import { withUtm } from './utm';
 import { invoke } from '@tauri-apps/api/core';
 import { sessionHeader } from './turnstile';
 
@@ -189,15 +190,9 @@ export async function guide(): Promise<Guide | null> {
   }
 }
 
-/** The Atlas sign-up link with UTM parameters; `content` says where it was shown. */
-export function atlasUrl(g: Guide | null, content: string): string {
-  const base = g?.atlasRegister.url ?? 'https://www.mongodb.com/cloud/atlas/register';
-  const utm = g?.atlasRegister.utm ?? {
-    utm_source: 'mongoplayground',
-    utm_medium: 'referral',
-    utm_campaign: 'playground-free-cluster',
-  };
-  return `${base}?${new URLSearchParams({ ...utm, utm_content: content })}`;
+/** The Atlas sign-up link, with the same UTM parameters as every link back to mongodb.com. */
+export function atlasUrl(g: Guide | null): string {
+  return withUtm(g?.atlasRegister.url ?? 'https://www.mongodb.com/cloud/atlas/register', g?.atlasRegister.utm);
 }
 
 export interface Limits {

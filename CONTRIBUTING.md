@@ -5,8 +5,16 @@ the commands and the rules (agent parity, no secrets, tests on a local Atlas dep
 
 ## Setup
 
-You need Rust (rustup), Node 22+, and either Docker or the [Atlas CLI](https://www.mongodb.com/docs/atlas/cli/)
+You need Rust (rustup), Node 22+, and either Docker or the [Atlas CLI](https://www.mongodb.com/docs/atlas/cli/?utm_campaign=devrel&utm_source=third-party-content&utm_medium=cta&utm_content=mongodb-playground&utm_term=diana.esteves)
 for a local MongoDB. Details are in the README ("Run it locally").
+
+## Enable the secret guard
+
+```bash
+scripts/install-hooks.sh
+```
+
+It turns on a pre-commit hook that blocks Terraform plan and state files, `.env` and `*.tfvars` files, and credentials (a MongoDB connection string with a password, private keys, API tokens). Keep Terraform plans outside the repo with `scripts/tf.sh plan` and `scripts/tf.sh apply`.
 
 ## Before you open a pull request
 

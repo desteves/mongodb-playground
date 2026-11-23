@@ -32,6 +32,11 @@ override.tf.json
 *_override.tf.json
 tfplan*
 *.tfplan
+*.tfplan.json
+*.plan
+plan.out
+*.tfstate.lock.info
+.terraform.tfstate.lock.info
 infra/.terraform.lock.hcl.bak
 
 # --- Editors, OS, logs ---

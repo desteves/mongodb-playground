@@ -4,7 +4,7 @@ The playground runs on a hosted site, on your machine against a local MongoDB, a
 
 > Generated from `crates/core/src/guide.json` (also served at `GET /api/v1/guide` and by the MCP tool `get_setup_guide`). Replace `{origin}` with the site you are using, for example `https://mongoplayground.com` or `http://localhost:8080`.
 
-**Free-forever Atlas cluster (M0, 512 MB, no credit card):** [https://www.mongodb.com/cloud/atlas/register?utm_source=mongoplayground&utm_medium=referral&utm_campaign=playground-free-cluster&utm_content=docs](https://www.mongodb.com/cloud/atlas/register?utm_source=mongoplayground&utm_medium=referral&utm_campaign=playground-free-cluster&utm_content=docs)
+**Free-forever Atlas cluster (M0, 512 MB, no credit card):** [https://www.mongodb.com/cloud/atlas/register?utm_campaign=devrel&utm_source=third-party-content&utm_medium=cta&utm_content=mongodb-playground&utm_term=diana.esteves](https://www.mongodb.com/cloud/atlas/register?utm_campaign=devrel&utm_source=third-party-content&utm_medium=cta&utm_content=mongodb-playground&utm_term=diana.esteves)
 
 ## Use the hosted playground
 
@@ -65,7 +65,7 @@ A local MongoDB in Docker with Atlas Search and Vector Search, then the API and 
 
 512 MB, no credit card, one per project. Good for real, persistent use.
 
-1. Register for Atlas: <https://www.mongodb.com/cloud/atlas/register?utm_source=mongoplayground&utm_medium=referral&utm_campaign=playground-free-cluster&utm_content=docs>
+1. Register for Atlas: <https://www.mongodb.com/cloud/atlas/register?utm_campaign=devrel&utm_source=third-party-content&utm_medium=cta&utm_content=mongodb-playground&utm_term=diana.esteves>
 2. Or from the terminal: sign in and create a free cluster
 
    ```bash

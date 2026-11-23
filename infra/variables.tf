@@ -94,6 +94,12 @@ variable "cloudflare_remove_conflicting_dns" {
   default     = true
 }
 
+variable "credential_version" {
+  type        = number
+  description = "Rotation counter for the Atlas database passwords. The passwords are generated per run and never stored in state or plan files (write-only); increase this number and apply to rotate all of them, with the connection-string secrets updated in the same apply."
+  default     = 1
+}
+
 variable "cloudflare_proxied" {
   type        = bool
   description = "Proxy the apex and www through Cloudflare. Set false until the Google-managed load balancer certificate is ACTIVE (Google cannot validate a domain that resolves to Cloudflare), then set true again."

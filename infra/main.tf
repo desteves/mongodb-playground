@@ -1,5 +1,5 @@
 terraform {
-  required_version = ">= 1.5.0"
+  required_version = ">= 1.11.0" # write-only arguments and ephemeral values (no passwords in state or plan files)
 
   # Partial configuration: terraform init -backend-config="bucket=<state bucket>" (see infra/README.md)
   backend "gcs" {
@@ -73,6 +73,7 @@ module "atlas" {
   sample_databases       = var.sample_databases
   max_pool_size          = var.max_pool_size
   termination_protection = var.termination_protection
+  credential_version     = var.credential_version
   depends_on             = [module.network]
 }
 
@@ -81,6 +82,7 @@ module "secrets" {
   project_id     = var.project_id
   runtime_sa     = module.iam.runtime_email
   atlas_uris     = module.atlas.uris
+  credential_key = module.atlas.credential_key
   internal_token = random_password.internal_token.result
   stats_salt     = random_password.stats_salt.result
   session_secret = random_password.session_secret.result

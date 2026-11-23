@@ -86,7 +86,7 @@ s, _, g = call("GET", "/api/v1/guide")
 opts = [o["id"] for o in g.get("options", [])] if isinstance(g, dict) else []
 check("setup guide lists every way to run it", s == 200 and opts == ["hosted", "mcp", "atlas-local", "atlas-free", "atlas-ephemeral", "docker", "desktop"], (s, opts))
 check("guide has the Atlas sign-up link with UTMs, no placeholders left",
-      "utm_source=mongoplayground" in str(g) and "utm_medium=referral" in str(g) and "utm_campaign=playground-free-cluster" in str(g) and "{origin}" not in str(g) and "{atlasRegister}" not in str(g), str(g)[:300])
+      "utm_campaign=devrel&utm_source=third-party-content&utm_medium=cta&utm_content=mongodb-playground&utm_term=diana.esteves" in str(g) and "{origin}" not in str(g) and "{atlasRegister}" not in str(g), str(g)[:300])
 s, _, card = call("GET", "/.well-known/mcp.json")
 check("MCP discovery card", s == 200 and card.get("transport") == "streamable-http" and card["url"].endswith("/mcp") and "get_setup_guide" in card["tools"], (s, card))
 

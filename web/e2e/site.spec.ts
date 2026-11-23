@@ -33,14 +33,23 @@ test('every "free Atlas cluster" link carries UTM parameters', async ({ page }) 
   expect(hrefs.length).toBeGreaterThanOrEqual(3); // header, sidebar, footer
   for (const href of hrefs) {
     const u = new URL(href);
-    expect(u.searchParams.get('utm_source')).toBe('mongoplayground');
-    expect(u.searchParams.get('utm_medium')).toBe('referral');
-    expect(u.searchParams.get('utm_campaign')).toBe('playground-free-cluster');
-    expect(u.searchParams.get('utm_content')).toBeTruthy();
+    expect(u.search).toContain(
+      'utm_campaign=devrel&utm_source=third-party-content&utm_medium=cta&utm_content=mongodb-playground&utm_term=diana.esteves',
+    );
   }
-  const placements = new Set(hrefs.map((h) => new URL(h).searchParams.get('utm_content')));
-  expect(placements).toContain('header');
-  expect(placements).toContain('footer');
+});
+
+test('every link back to mongodb.com carries the UTM parameters, on every page', async ({ page }) => {
+  for (const path of ['/', '/about', '/docs/quickstart', '/docs/api', '/docs/mcp', '/docs/run-it-yourself']) {
+    await page.goto(path);
+    const hrefs = await page.locator('a[href]').evaluateAll((els) => els.map((e) => (e as HTMLAnchorElement).href));
+    for (const href of hrefs) {
+      const host = new URL(href).hostname;
+      if (host === 'mongodb.com' || host.endsWith('.mongodb.com')) {
+        expect(href, `${path} -> ${href}`).toContain('utm_campaign=devrel&utm_source=third-party-content');
+      }
+    }
+  }
 });
 
 test('the API and MCP pages show how to connect', async ({ page }) => {

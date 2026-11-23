@@ -63,7 +63,7 @@
 
   <h2>Use your own cluster</h2>
   <p>
-    Want your data to stick around? <a href={registerUrl('about')} target="_blank" rel="noopener">Create a free Atlas cluster</a>, then
+    Want your data to stick around? <a href={registerUrl()} target="_blank" rel="noopener">Create a free Atlas cluster</a>, then
     <a href="/docs/run-it-yourself">run the playground against it</a>.
   </p>
 

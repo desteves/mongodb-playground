@@ -3,6 +3,11 @@ variable "runtime_sa" { type = string }
 variable "atlas_uris" {
   type      = map(string)
   sensitive = true
+  ephemeral = true # generated per run, never stored (see modules/atlas)
+}
+variable "credential_key" {
+  type        = number
+  description = "Version of the write-only connection-string secrets; changes together with the Atlas passwords."
 }
 variable "internal_token" {
   type      = string
@@ -47,9 +52,12 @@ resource "google_secret_manager_secret" "uri" {
 }
 
 resource "google_secret_manager_secret_version" "uri" {
-  for_each    = local.names
-  secret      = google_secret_manager_secret.uri[each.key].id
-  secret_data = var.atlas_uris[each.value] == "" ? "pending" : var.atlas_uris[each.value]
+  for_each = local.names
+  secret   = google_secret_manager_secret.uri[each.key].id
+  # Write-only: the connection string (it contains the password) is sent to Secret Manager but never kept
+  # in the state or in a plan file.
+  secret_data_wo         = var.atlas_uris[each.value] == "" ? "pending" : var.atlas_uris[each.value]
+  secret_data_wo_version = var.credential_key
 }
 
 resource "google_secret_manager_secret" "plain" {

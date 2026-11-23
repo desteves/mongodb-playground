@@ -499,7 +499,8 @@ mod tests {
             "{text}"
         );
         assert!(
-            text.contains("utm_source=mongoplayground") && text.contains("utm_content=guide"),
+            text.contains("utm_source=third-party-content")
+                && text.contains("utm_content=mongodb-playground"),
             "{text}"
         );
         assert!(!text.contains("{origin}") && !text.contains("{atlasRegister}"));

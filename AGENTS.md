@@ -52,3 +52,5 @@ scripts/loadtest-with-atlas-local.sh    # load test, abuse test, leftover-databa
 4. **Sample data is behind `FEATURE_SAMPLE_DATA`** and off by default. Templates must not depend on it.
 5. **Share links are random UUIDs**, not content hashes. Do not document them as content-addressed.
 6. Keep Terraform formatted (`terraform fmt -recursive`) and run `plan` before `apply`.
+7. **Links back to mongodb.com carry the UTM parameters** (`utm_campaign=devrel&utm_source=third-party-content&utm_medium=cta&utm_content=mongodb-playground&utm_term=diana.esteves`), for every variant of the domain (www, cloud, docs, dochub). Never hand-write them: use `with_utm` (Rust, `crates/core/src/lib.rs`), `withUtm`/`mongodbUrl`/`registerUrl` (web, `web/src/lib/utm.ts`, `site.svelte.ts`), and keep the one set in `UTM` in `lib.rs`. Static docs carry the literal query string.
+8. **No secrets in plans, state or commits.** Database passwords are ephemeral and write-only in Terraform (never in state or a plan). Never write a plan file inside the repo: use `scripts/tf.sh plan` / `apply`. Run `scripts/install-hooks.sh` so the pre-commit hook blocks plan/state files and credentials.

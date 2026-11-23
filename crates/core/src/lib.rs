@@ -38,11 +38,72 @@ pub fn examples() -> serde_json::Value {
     serde_json::from_str(include_str!("examples.json")).expect("examples.json is valid JSON")
 }
 
+/// The UTM parameters on every link back to mongodb.com (any subdomain), in this order. One place only:
+/// the Rust helpers, `GET /api/v1/guide` (`atlasRegister.utm`) and the web app all use this set.
+pub const UTM: [(&str, &str); 5] = [
+    ("utm_campaign", "devrel"),
+    ("utm_source", "third-party-content"),
+    ("utm_medium", "cta"),
+    ("utm_content", "mongodb-playground"),
+    ("utm_term", "diana.esteves"),
+];
+
+/// Adds the UTM parameters to a link to mongodb.com (`mongodb.com` or any `*.mongodb.com`: www, cloud,
+/// docs, dochub, ...). Other links are returned unchanged; existing `utm_*` values from the set are replaced
+/// and other query parameters and the fragment are kept.
+pub fn with_utm(url: &str) -> String {
+    let (no_fragment, fragment) = match url.split_once('#') {
+        Some((a, b)) => (a, Some(b)),
+        None => (url, None),
+    };
+    let (base, query) = no_fragment.split_once('?').unwrap_or((no_fragment, ""));
+    let host = base
+        .split_once("://")
+        .map_or(base, |(_, rest)| rest)
+        .split('/')
+        .next()
+        .unwrap_or("")
+        .rsplit('@')
+        .next()
+        .unwrap_or("")
+        .split(':')
+        .next()
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    if host != "mongodb.com" && !host.ends_with(".mongodb.com") {
+        return url.to_string();
+    }
+    let mut parts: Vec<String> = query
+        .split('&')
+        .filter(|p| !p.is_empty() && !UTM.iter().any(|(k, _)| p.split('=').next() == Some(*k)))
+        .map(String::from)
+        .collect();
+    parts.extend(UTM.iter().map(|(k, v)| format!("{k}={v}")));
+    let mut out = format!("{base}?{}", parts.join("&"));
+    if let Some(f) = fragment {
+        out.push('#');
+        out.push_str(f);
+    }
+    out
+}
+
 /// How to run the playground yourself, get a free or ephemeral Atlas cluster, or connect an agent.
 /// Text contains `{origin}` (the public URL of this server) and `{atlasRegister}` (the Atlas
 /// sign-up link with UTM parameters); the API fills both in. Served at `GET /api/v1/guide`.
 pub fn guide() -> serde_json::Value {
-    serde_json::from_str(include_str!("guide.json")).expect("guide.json is valid JSON")
+    let mut g: serde_json::Value =
+        serde_json::from_str(include_str!("guide.json")).expect("guide.json is valid JSON");
+    let utm: serde_json::Map<String, serde_json::Value> = UTM
+        .iter()
+        .map(|(k, v)| {
+            (
+                (*k).to_string(),
+                serde_json::Value::String((*v).to_string()),
+            )
+        })
+        .collect();
+    g["atlasRegister"]["utm"] = serde_json::Value::Object(utm);
+    g
 }
 
 /// The guide with `{origin}` and `{atlasRegister}` filled in for a server at `origin`.
@@ -50,28 +111,17 @@ pub fn guide_for(origin: &str) -> serde_json::Value {
     let text = guide()
         .to_string()
         .replace("{origin}", origin.trim_end_matches('/'))
-        .replace("{atlasRegister}", &atlas_register_url("guide"));
+        .replace("{atlasRegister}", &atlas_register_url());
     serde_json::from_str(&text).expect("the filled-in guide is valid JSON")
 }
 
-/// The Atlas registration URL with UTM parameters. `content` says where the link was shown.
-pub fn atlas_register_url(content: &str) -> String {
+/// The Atlas registration link, with the UTM parameters.
+pub fn atlas_register_url() -> String {
     let g = guide();
     let base = g["atlasRegister"]["url"]
         .as_str()
         .unwrap_or("https://www.mongodb.com/cloud/atlas/register");
-    let mut url = base.to_string();
-    let mut sep = '?';
-    if let Some(utm) = g["atlasRegister"]["utm"].as_object() {
-        for (k, v) in utm {
-            url.push(sep);
-            url.push_str(&format!("{k}={}", v.as_str().unwrap_or("")));
-            sep = '&';
-        }
-    }
-    url.push(sep);
-    url.push_str(&format!("utm_content={content}"));
-    url
+    with_utm(base)
 }
 
 #[cfg(test)]
@@ -105,20 +155,49 @@ mod guide_tests {
         assert!(g.to_string().contains("{origin}"));
     }
 
+    const EXPECTED: &str = "utm_campaign=devrel&utm_source=third-party-content&utm_medium=cta&utm_content=mongodb-playground&utm_term=diana.esteves";
+
     #[test]
     fn atlas_link_has_proper_utms() {
-        let url = atlas_register_url("header");
-        assert!(
-            url.starts_with("https://www.mongodb.com/cloud/atlas/register?"),
-            "{url}"
+        assert_eq!(
+            atlas_register_url(),
+            format!("https://www.mongodb.com/cloud/atlas/register?{EXPECTED}")
         );
-        for part in [
-            "utm_source=mongoplayground",
-            "utm_medium=referral",
-            "utm_campaign=playground-free-cluster",
-            "utm_content=header",
+    }
+
+    #[test]
+    fn every_mongodb_com_link_gets_the_utms_and_nothing_else_does() {
+        for url in [
+            "https://mongodb.com/docs/",
+            "https://www.mongodb.com/docs/atlas/cli/",
+            "https://cloud.mongodb.com/v2",
+            "https://dochub.mongodb.com/core/x",
+            "HTTPS://WWW.MONGODB.COM/docs",
         ] {
-            assert!(url.contains(part), "{url} lacks {part}");
+            assert!(with_utm(url).contains(EXPECTED), "{url}");
+        }
+        // existing parameters and the fragment are kept; old utm values are replaced
+        assert_eq!(
+            with_utm("https://www.mongodb.com/docs?a=1&utm_source=old#top"),
+            format!("https://www.mongodb.com/docs?a=1&{EXPECTED}#top")
+        );
+        // other hosts are untouched, including look-alikes and the connection-string host
+        for url in [
+            "https://github.com/desteves/mongodb-playground",
+            "https://notmongodb.com/",
+            "https://mongodb.com.evil.example/",
+            "mongodb+srv://cluster0.abcde.mongodb.net/",
+            "https://cloud.mongodb.net/",
+        ] {
+            assert_eq!(with_utm(url), url);
+        }
+    }
+
+    #[test]
+    fn the_guide_carries_the_same_set() {
+        let g = guide();
+        for (k, v) in UTM {
+            assert_eq!(g["atlasRegister"]["utm"][k], v);
         }
     }
 }

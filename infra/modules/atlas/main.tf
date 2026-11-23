@@ -18,6 +18,7 @@ variable "subnetwork_id" { type = string }
 variable "sample_databases" { type = list(string) }
 variable "max_pool_size" { type = number }
 variable "termination_protection" { type = bool }
+variable "credential_version" { type = number }
 
 resource "mongodbatlas_advanced_cluster" "this" {
   project_id                     = var.atlas_project_id
@@ -124,18 +125,23 @@ locals {
   }
 }
 
-resource "random_password" "user" {
+# The database passwords are EPHEMERAL: generated for one run, handed to Atlas and Secret Manager through
+# write-only arguments, and never written to the state or to a saved plan. A plan file therefore holds no
+# credential, which is what keeps secret scanners (and the Atlas "credentials found on GitHub" alert) quiet
+# even if a plan file is ever committed by mistake. Rotate with var.credential_version.
+ephemeral "random_password" "user" {
   for_each = local.users
   length   = 32
   special  = false
 }
 
 resource "mongodbatlas_database_user" "user" {
-  for_each           = local.users
-  project_id         = var.atlas_project_id
-  username           = "pg-${each.key}"
-  password           = random_password.user[each.key].result
-  auth_database_name = "admin"
+  for_each            = local.users
+  project_id          = var.atlas_project_id
+  username            = "pg-${each.key}"
+  password_wo         = ephemeral.random_password.user[each.key].result
+  password_wo_version = local.credential_key
+  auth_database_name  = "admin"
 
   dynamic "roles" {
     for_each = each.value.roles
@@ -164,18 +170,29 @@ locals {
   ]
   private_srv = length(local.mine) > 0 ? local.mine[0].srv_connection_string : ""
   host        = local.private_srv == "" ? "" : regex("^mongodb\\+srv://([^/?]+)", local.private_srv)[0]
+  # Write-only values are only rewritten when their version changes. The users and the connection-string
+  # secrets share this one key, so they always change together: a new password is never stored in a secret
+  # without also being set on the Atlas user (or the other way round).
+  credential_key = parseint(substr(sha256("${var.credential_version}:${local.host}"), 0, 7), 16)
   # Connection-string best practice: compression, retry, small pool and an app name are set here
   # so operators can retune them without a rebuild (the app only fills in what is missing).
   params = "retryWrites=true&w=majority&appName=mongodb-playground&compressors=zstd,snappy,zlib&maxPoolSize=${var.max_pool_size}&maxIdleTimeMS=30000"
 }
 
 output "uris" {
-  description = "Connection strings by user, over the private endpoint. Empty until the PSC connection is ready: apply again."
+  description = "Connection strings by user, over the private endpoint. Empty until the PSC connection is ready: apply again. Ephemeral: only usable in write-only arguments, never stored."
+  ephemeral   = true
   sensitive   = true
   value = {
     for name, _ in local.users :
-    name => local.host == "" ? "" : "mongodb+srv://pg-${name}:${random_password.user[name].result}@${local.host}/?${local.params}"
+    name => local.host == "" ? "" : "mongodb+srv://pg-${name}:${ephemeral.random_password.user[name].result}@${local.host}/?${local.params}"
   }
+}
+
+# Changes whenever the passwords must be rewritten (credential_version bumped, or the endpoint host appeared
+# or changed). The secrets module uses it as the version of its write-only secret values.
+output "credential_key" {
+  value = local.credential_key
 }
 
 # Debugging aid: every private connection string Atlas offers and which endpoint IDs belong to it.

@@ -9,6 +9,13 @@ Cloudflare (proxy, WAF, rate limit, cache; sets X-Origin-Key)
       -> Direct VPC egress -> Private Service Connect -> Atlas M10 (no public path)
 ```
 
+## No credentials in state, plans or the repo
+
+- **Database passwords are never stored.** The four Atlas users (`pg-runner`, `pg-shares`, `pg-stats`, `pg-sample`) get passwords from `ephemeral "random_password"` resources, passed to Atlas (`password_wo`) and Secret Manager (`secret_data_wo`) as write-only values: they live for one run and are not written to the state or to a saved plan. So a plan file that is committed by mistake holds no database credential (and the Atlas "credentials found on GitHub" alert has nothing to find). Needs Terraform 1.11 or later.
+- **Rotate** all four by increasing `credential_version` in `terraform.tfvars` and applying; the users and the connection-string secrets change in the same apply. Then restart the service (`gcloud run services update playground-api --region us-central1 --update-env-vars=REDEPLOY=$(date +%s)`).
+- **Keep plans out of the repo:** use `scripts/tf.sh plan` and `scripts/tf.sh apply`. It writes the plan to a private directory outside the checkout, applies exactly that plan and deletes it. A plan file still holds the other generated secrets (origin key, tokens), so never commit one.
+- **Guard rail:** `scripts/install-hooks.sh` enables a pre-commit hook that refuses plan/state/`.env`/tfvars files and anything that looks like a credential (connection string with a password, private key, API token).
+
 ## Credentials (environment only, never files in the repo)
 
 ```bash

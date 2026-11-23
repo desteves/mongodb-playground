@@ -11,7 +11,7 @@
   <p class="lead">{g?.summary ?? 'Run it locally, against your own free Atlas cluster, or from an agent.'}</p>
 
   <p>
-    <a class="btn btn-primary" href={registerUrl('guide')} target="_blank" rel="noopener">Create a free Atlas cluster ↗</a>
+    <a class="btn btn-primary" href={registerUrl()} target="_blank" rel="noopener">Create a free Atlas cluster ↗</a>
     <span class="muted">Free forever, 512 MB, no credit card.</span>
   </p>
 

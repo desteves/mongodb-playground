@@ -10,7 +10,7 @@ test('discovery: llms.txt, OpenAPI, MCP card, setup guide', async ({ request }) 
   expect(card.transport).toBe('streamable-http');
   expect(card.tools).toContain('export_playground');
   const guide = await (await request.get('/api/v1/guide')).json();
-  expect(JSON.stringify(guide)).toContain('utm_source=mongoplayground');
+  expect(JSON.stringify(guide)).toContain('utm_campaign=devrel&utm_source=third-party-content');
 });
 
 test('MCP: initialize, list tools, run a script', async ({ request }) => {

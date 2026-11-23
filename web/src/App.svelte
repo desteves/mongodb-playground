@@ -56,7 +56,7 @@
       <span class="label">{themeLabel}</span>
     </button>
     {#if !isDesktop}
-      <a class="btn btn-primary cta" href={registerUrl('header')} target="_blank" rel="noopener">Free Atlas cluster ↗</a>
+      <a class="btn btn-primary cta" href={registerUrl()} target="_blank" rel="noopener">Free Atlas cluster ↗</a>
     {/if}
   </header>
 

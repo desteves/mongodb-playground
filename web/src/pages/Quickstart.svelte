@@ -67,7 +67,7 @@ db.collection.countDocuments({})`;
 
   <h2>Keep your data</h2>
   <p>The playground uses throwaway databases. To keep data, create your own cluster and <a href="/docs/run-it-yourself">run the playground against it</a>.</p>
-  <p><a class="btn btn-primary" href={registerUrl('quickstart')} target="_blank" rel="noopener">Create a free Atlas cluster ↗</a></p>
+  <p><a class="btn btn-primary" href={registerUrl()} target="_blank" rel="noopener">Create a free Atlas cluster ↗</a></p>
 
   <h2>Cheat sheet</h2>
   <div class="card">

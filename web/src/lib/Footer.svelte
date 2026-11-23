@@ -10,7 +10,7 @@
       <strong>Create your own free Atlas cluster</strong>
       {#if !slim}<p class="muted">Free forever, 512 MB, no credit card. Keep your data, add search, and point this playground at it.</p>{/if}
     </div>
-    <a class="btn btn-primary" href={registerUrl('footer')} target="_blank" rel="noopener">Start free ↗</a>
+    <a class="btn btn-primary" href={registerUrl()} target="_blank" rel="noopener">Start free ↗</a>
   </div>
   <nav aria-label="Footer">
     <a href="/">Playground</a>

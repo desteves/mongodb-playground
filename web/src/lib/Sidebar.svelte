@@ -37,7 +37,7 @@
 
   <h2>Resources</h2>
   <ul>
-    <li><a href={registerUrl('sidebar')} target="_blank" rel="noopener">{@render icon(icons.leaf)}Free Atlas cluster <span class="ext">↗</span></a></li>
+    <li><a href={registerUrl()} target="_blank" rel="noopener">{@render icon(icons.leaf)}Free Atlas cluster <span class="ext">↗</span></a></li>
     <li><a href="/api/v1/openapi.json" target="_blank" rel="noopener">{@render icon(icons.spec)}OpenAPI spec <span class="ext">↗</span></a></li>
     <li><a href="/llms.txt" target="_blank" rel="noopener">{@render icon(icons.file)}llms.txt <span class="ext">↗</span></a></li>
   </ul>

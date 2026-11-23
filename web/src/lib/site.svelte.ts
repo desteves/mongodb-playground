@@ -1,4 +1,5 @@
 // Data every page may want, fetched once: limits and capabilities, the setup guide, templates and examples.
+import { withUtm } from './utm';
 import { atlasUrl, examples as fetchExamples, guide as fetchGuide, limits as fetchLimits, type Example, type Guide, type Limits } from './api';
 import { startTurnstile } from './turnstile';
 
@@ -23,5 +24,8 @@ export function loadSite() {
   });
 }
 
-/** The Atlas sign-up link with UTM parameters; `placement` says where it was shown. */
-export const registerUrl = (placement: string) => atlasUrl(site.guide, placement);
+/** The Atlas sign-up link, with the UTM parameters. */
+export const registerUrl = () => atlasUrl(site.guide);
+
+/** Any link back to mongodb.com (docs, Atlas, ...) goes through this so it carries the UTM parameters. */
+export const mongodbUrl = (href: string) => withUtm(href, site.guide?.atlasRegister.utm);
