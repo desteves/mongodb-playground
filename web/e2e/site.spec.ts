@@ -76,3 +76,9 @@ test('unknown pages say so', async ({ page }) => {
   await page.goto('/no/such/page');
   await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible();
 });
+
+test('About links to the GitHub repository', async ({ page }) => {
+  await page.goto('/about');
+  const link = page.getByRole('link', { name: /github\.com\/desteves\/mongodb-playground/ });
+  await expect(link).toHaveAttribute('href', 'https://github.com/desteves/mongodb-playground/tree/main');
+});

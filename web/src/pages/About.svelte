@@ -54,6 +54,13 @@
     <li>A REST API with an OpenAPI spec, and an MCP server, so agents can use everything the web app can.</li>
   </ul>
 
+  <h2>Open source</h2>
+  <p>
+    The code, the Terraform and the docs are on GitHub:
+    <a href="https://github.com/desteves/mongodb-playground/tree/main" target="_blank" rel="noopener">github.com/desteves/mongodb-playground</a>.
+    Issues and pull requests are welcome, from people and from agents.
+  </p>
+
   <h2>Use your own cluster</h2>
   <p>
     Want your data to stick around? <a href={registerUrl('about')} target="_blank" rel="noopener">Create a free Atlas cluster</a>, then

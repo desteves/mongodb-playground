@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 // The three panels in DOM order: data, shell, results. Each editor is a CodeMirror view.
 const editor = (page: Page, i: number) => page.locator('.pane').nth(i).locator('.cm-content');
-const run = (page: Page) => page.getByRole('button', { name: 'Run the script' });
+const run = (page: Page) => page.getByRole('button', { name: 'Run all statements' });
 
 test.beforeEach(async ({ page }) => {
   await page.goto('/');
@@ -71,7 +71,7 @@ test('templates: single and multiple use the same shape, and the multi one runs'
   // below ~1100px the template picker lives in the "more" menu; above it the picker is inline
   const more = page.locator('.more-btn');
   if (await more.isVisible()) await more.click();
-  await page.getByLabel('Templates and examples').selectOption('multi');
+  await page.getByLabel('Load an example').selectOption('multi');
   await expect(editor(page, 0)).toContainText('orders: {');
   await expect(editor(page, 0)).toContainText('inventory: {');
   await expect(editor(page, 0)).toContainText('documents: [');
@@ -99,7 +99,13 @@ test('Share makes a /p/<id> link that reopens the same playground', async ({ pag
 
 test('Export downloads a mongosh script that recreates the data', async ({ page }) => {
   await page.getByRole('button', { name: /^Export/ }).click();
-  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Script for mongosh (.js)' }).click()]);
+  await page.getByRole('button', { name: 'Script for mongosh (.js)' }).click();
+  // a preview first: nothing is downloaded until it is confirmed, and the text can be copied from the box
+  const dialog = page.getByRole('dialog', { name: 'Script for mongosh' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByLabel('Export preview')).toHaveValue(/use\("playground"\);/);
+  await expect(dialog.getByRole('button', { name: 'Copy' })).toBeVisible();
+  const [download] = await Promise.all([page.waitForEvent('download'), dialog.getByRole('button', { name: /^Download/ }).click()]);
   expect(download.suggestedFilename()).toBe('playground.js');
   const text = (await (await download.createReadStream()).toArray()).join('');
   expect(text).toContain('use("playground");');
@@ -112,7 +118,10 @@ test('Export results as CSV after a run', async ({ page }) => {
   await run(page).click();
   await expect(editor(page, 2)).toContainText('name: "Linus"');
   await page.getByRole('button', { name: /^Export/ }).click();
-  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Last result as CSV' }).click()]);
+  await page.getByRole('button', { name: 'Last result as CSV' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Last result as CSV' });
+  await expect(dialog.getByLabel('Export preview')).toHaveValue(/Linus/);
+  const [download] = await Promise.all([page.waitForEvent('download'), dialog.getByRole('button', { name: /^Download/ }).click()]);
   expect(download.suggestedFilename()).toBe('results.csv');
   const csv = (await (await download.createReadStream()).toArray()).join('');
   expect(csv.split('\n')[0]).toContain('name');
@@ -120,9 +129,9 @@ test('Export results as CSV after a run', async ({ page }) => {
 });
 
 test('sample data is off by default (feature flag)', async ({ page }) => {
-  await expect(page.getByLabel('Templates and examples')).toBeAttached();
+  await expect(page.getByLabel('Load an example')).toBeAttached();
   await expect(page.getByText('Atlas sample data')).toHaveCount(0); // no data-source picker
-  const options = await page.getByLabel('Templates and examples').locator('option').allTextContents();
+  const options = await page.getByLabel('Load an example').locator('option').allTextContents();
   expect(options.some((o) => /sample_mflix|sample dataset/i.test(o))).toBe(false); // and no sample example to pick
 });
 
@@ -175,4 +184,41 @@ test('?example= opens an example', async ({ page }) => {
   await expect(editor(page, 0)).toContainText('The Matrix');
   await run(page).click();
   await expect(editor(page, 2)).toContainText('avgRating');
+});
+
+test('Run lives only in the Shell panel, not in the toolbar', async ({ page }) => {
+  await expect(page.locator('.toolbar').getByRole('button', { name: /^Run/ })).toHaveCount(0);
+  await expect(page.locator('.pane').nth(1).getByRole('button', { name: 'Run all statements' })).toBeVisible();
+});
+
+test('each panel has its own background shade', async ({ page }) => {
+  const shade = (i: number) => page.locator('.pane').nth(i).evaluate((e) => getComputedStyle(e).backgroundColor);
+  const [a, b, c] = [await shade(0), await shade(1), await shade(2)];
+  expect(new Set([a, b, c]).size).toBe(3);
+});
+
+test('the example picker says "Load an example…"', async ({ page }) => {
+  const more = page.locator('.more-btn');
+  if (await more.isVisible()) await more.click();
+  await expect(page.getByLabel('Load an example').locator('option').first()).toHaveText('Load an example…');
+});
+
+test('a Search query warns that the first run is slower', async ({ page }) => {
+  await expect(page.getByRole('note')).toHaveCount(0);
+  await editor(page, 1).click();
+  await page.keyboard.press('ControlOrMeta+a');
+  await page.keyboard.type('db.collection.aggregate([{ $search: { text: { query: "x", path: "name" } } }])');
+  await expect(page.getByRole('note')).toContainText('can take longer the first time');
+});
+
+test('a running query shows a spinner and the seconds elapsed', async ({ page }) => {
+  await page.route('**/api/v1/run', async (route) => {
+    await new Promise((r) => setTimeout(r, 1500));
+    await route.continue();
+  });
+  await run(page).click();
+  await expect(page.getByRole('status').filter({ hasText: /Running/ })).toBeVisible();
+  await expect(page.getByRole('progressbar')).toBeVisible();
+  await expect(editor(page, 2)).toContainText('name: "Linus"');
+  await expect(page.getByRole('progressbar')).toHaveCount(0);
 });

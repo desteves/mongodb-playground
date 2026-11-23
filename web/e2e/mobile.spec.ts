@@ -8,7 +8,7 @@ test('phone layout: tabs, a drawer, big Run, no sideways scrolling', async ({ pa
   await expect(tabs.getByRole('button', { name: 'Shell' })).toBeVisible();
 
   // Run is large and a run switches to the Results tab
-  const run = page.getByRole('button', { name: 'Run the script' });
+  const run = page.getByRole('button', { name: 'Run all statements' });
   const box = await run.boundingBox();
   expect(box!.height).toBeGreaterThanOrEqual(40);
   await run.click();

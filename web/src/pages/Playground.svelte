@@ -2,6 +2,7 @@
   import { onMount, untrack } from 'svelte';
   import Editor from '../lib/Editor.svelte';
   import Footer from '../lib/Footer.svelte';
+  import Icon from '../lib/Icon.svelte';
   import {
     ApiError,
     explain,
@@ -84,6 +85,10 @@
   let dataEd: EditorApi | undefined = $state();
   let shellEd: EditorApi | undefined = $state();
   let exportOpen = $state(false);
+  type Preview = { title: string; filename: string; mime: string; text: string };
+  let exportView = $state<Preview | null>(null); // what the export dialog is showing
+  let exportDialog: HTMLDialogElement;
+  let elapsed = $state(0); // seconds since the current run started
   let moreOpen = $state(false);
   let shareUrl = $state('');
   let shareDialog: HTMLDialogElement;
@@ -97,6 +102,15 @@
   const origin = typeof location === 'undefined' ? '' : location.origin;
   const anyCollapsed = $derived(Object.values(collapsed).some(Boolean));
   const hasSelection = $derived(selection.trim().length > 0);
+  // Search and Vector Search runs build an index first, so the first run is slower. Comments don't count.
+  const usesSearch = $derived(
+    /\$(search|searchMeta|vectorSearch)\b|createSearchIndex|\b(searchIndexes|vectorSearchIndexes)\s*:/.test(
+      `${script}\n${config}`.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, ''),
+    ),
+  );
+  const runLabel = $derived(
+    !busy ? '' : usesSearch && elapsed >= 3 ? `Building the search index… ${elapsed} s` : `Running… ${elapsed} s`,
+  );
 
   // ---- layout ---------------------------------------------------------------------------------------------------
   let layoutPref = $state<Layout | null>(stored('layout') as Layout | null);
@@ -248,6 +262,14 @@
     error = '';
   }
 
+  let clock: ReturnType<typeof setInterval> | undefined;
+  function startClock() {
+    const t0 = Date.now();
+    elapsed = 0;
+    clearInterval(clock);
+    clock = setInterval(() => (elapsed = Math.floor((Date.now() - t0) / 1000)), 500);
+  }
+
   /** Run everything in the shell, or only the highlighted statements. */
   async function execute(planOnly = false, scope: 'all' | 'selection' = 'all') {
     if (busy) return;
@@ -258,6 +280,7 @@
     error = '';
     notice = '';
     busy = true;
+    startClock();
     moreOpen = false;
     try {
       const text = scope === 'selection' ? selection : script;
@@ -271,6 +294,7 @@
       if (layout === 'tabs') notice = error;
     } finally {
       busy = false;
+      clearInterval(clock);
       if (layout === 'tabs') active = 'result';
       collapsed.result = false; // make sure the answer is visible
     }
@@ -318,13 +342,34 @@
     }
   }
 
-  // ---- export -------------------------------------------------------------------------------------------------------
+  // ---- export: show a preview first; the person copies from it or confirms the download -----------------------
+  const PREVIEW_MAX = 100_000;
+  const shownText = $derived(exportView ? exportView.text.slice(0, PREVIEW_MAX) : '');
+  const truncated = $derived(!!exportView && exportView.text.length > PREVIEW_MAX);
+
+  function openPreview(p: Preview) {
+    exportOpen = false;
+    exportView = p;
+    exportDialog.showModal();
+  }
+
+  function confirmDownload() {
+    if (!exportView) return;
+    download(exportView.filename, exportView.text, exportView.mime);
+    say(`Saved ${exportView.filename}`);
+    exportDialog.close();
+  }
+
   async function serverExport(format: 'mongosh' | 'json') {
     exportOpen = false;
     try {
       const out = await exportPlayground({ script, config }, format);
-      download(out.filename, out.content, out.mimeType);
-      say(`Saved ${out.filename}`);
+      openPreview({
+        title: format === 'mongosh' ? 'Script for mongosh' : 'Data and script as JSON',
+        filename: out.filename,
+        mime: out.mimeType,
+        text: out.content,
+      });
     } catch (e) {
       notice = e instanceof ApiError ? `Export failed: ${e.message}` : `Export failed: ${(e as Error).message}`;
     }
@@ -335,14 +380,15 @@
   function exportResults(kind: 'json' | 'csv' | 'txt') {
     exportOpen = false;
     if (!output) return say('Run something first');
-    if (kind === 'txt') download('transcript.txt', results, 'text/plain');
-    else if (kind === 'csv') download('results.csv', toCsv(lastRows()), 'text/csv');
+    if (kind === 'txt') openPreview({ title: 'Transcript', filename: 'transcript.txt', mime: 'text/plain', text: results });
+    else if (kind === 'csv') openPreview({ title: 'Last result as CSV', filename: 'results.csv', mime: 'text/csv', text: toCsv(lastRows()) });
     else
-      download(
-        'results.json',
-        JSON.stringify(output.statements.map((s) => ({ statement: s.statement, op: s.op, results: s.results, write: s.write, error: s.error })), null, 2),
-        'application/json',
-      );
+      openPreview({
+        title: 'Results as JSON',
+        filename: 'results.json',
+        mime: 'application/json',
+        text: JSON.stringify(output.statements.map((s) => ({ statement: s.statement, op: s.op, results: s.results, write: s.write, error: s.error })), null, 2),
+      });
   }
 
   const requestJson = () => JSON.stringify(body(), null, 2);
@@ -379,8 +425,8 @@
 
 {#snippet collapseButton(k: Pane, name: string)}
   {#if layout !== 'tabs'}
-    <button class="mini collapse" onclick={() => toggle(k)} aria-expanded={!collapsed[k]} aria-label={collapsed[k] ? `Expand the ${name} panel` : `Collapse the ${name} panel`} title={collapsed[k] ? `Expand ${name}` : `Collapse ${name}`}>
-      {collapsed[k] ? (layout === 'columns' ? '▸' : '▾') : layout === 'columns' ? '◂' : '▴'}
+    <button class="iconbtn" onclick={() => toggle(k)} aria-expanded={!collapsed[k]} aria-label={collapsed[k] ? `Expand the ${name} panel` : `Collapse the ${name} panel`} title={collapsed[k] ? `Expand ${name}` : `Collapse ${name}`}>
+      <Icon name={layout === 'columns' ? (collapsed[k] ? 'chevrons-right' : 'chevrons-left') : collapsed[k] ? 'chevron-down' : 'chevron-up'} />
     </button>
   {/if}
 {/snippet}
@@ -388,9 +434,6 @@
 <div class="pg">
   <div class="toolbar">
     <div class="actions">
-      <button class="run primary" onclick={() => execute()} disabled={busy} aria-label="Run the script" title="Run all statements in the Shell">
-        <span aria-hidden="true">▶</span>{busy ? 'Running…' : 'Run'}
-      </button>
       {#if !isDesktop}<button onclick={doShare} title="Create a link to this playground">Share</button>{/if}
       <div class="menuwrap">
         <button aria-haspopup="menu" aria-expanded={exportOpen} onclick={(e) => { e.stopPropagation(); exportOpen = !exportOpen; }}>Export ▾</button>
@@ -409,8 +452,8 @@
             <button onclick={() => exportResults('txt')} disabled={!output}>Transcript (.txt)</button>
             {#if !isDesktop}
               <h3>API</h3>
-              <button onclick={() => { exportOpen = false; copy(curl(), 'curl copied'); }}>Copy as curl</button>
-              <button onclick={() => { exportOpen = false; copy(requestJson(), 'Request JSON copied'); }}>Copy request JSON</button>
+              <button onclick={() => openPreview({ title: 'Request as curl', filename: 'playground.sh', mime: 'text/x-shellscript', text: curl() })}>Request as curl</button>
+              <button onclick={() => openPreview({ title: 'Request JSON', filename: 'request.json', mime: 'application/json', text: requestJson() })}>Request JSON</button>
             {/if}
           </div>
         {/if}
@@ -421,8 +464,8 @@
       {moreOpen ? '✕' : '⋯'}<span class="sr"> More</span>
     </button>
     <div class="secondary" class:open={moreOpen}>
-      <select bind:value={picked} onchange={() => load(picked)} aria-label="Templates and examples">
-        <option value="">Templates &amp; examples…</option>
+      <select bind:value={picked} onchange={() => load(picked)} aria-label="Load an example">
+        <option value="">Load an example…</option>
         <optgroup label="Templates">
           {#each templates as t}<option value={t.id}>{t.title}</option>{/each}
         </optgroup>
@@ -453,9 +496,9 @@
       <label class="check"><input type="checkbox" bind:checked={autorun} /> Auto-run</label>
       {#if !ui.small}
         <span class="seg" role="group" aria-label="Layout">
-          <button class:on={layout === 'columns'} onclick={() => setLayout('columns')} title="Side by side" aria-label="Side by side">▥</button>
-          <button class:on={layout === 'rows'} onclick={() => setLayout('rows')} title="Stacked" aria-label="Stacked">☰</button>
-          <button class:on={layout === 'tabs'} onclick={() => setLayout('tabs')} title="One panel at a time" aria-label="One panel at a time">▭</button>
+          <button class:on={layout === 'columns'} onclick={() => setLayout('columns')} title="Side by side" aria-label="Side by side"><Icon name="columns" size={16} /></button>
+          <button class:on={layout === 'rows'} onclick={() => setLayout('rows')} title="Stacked" aria-label="Stacked"><Icon name="rows" size={16} /></button>
+          <button class:on={layout === 'tabs'} onclick={() => setLayout('tabs')} title="One panel at a time" aria-label="One panel at a time"><Icon name="square" size={16} /></button>
         </span>
       {/if}
     </div>
@@ -464,7 +507,7 @@
   {#if notice}
     <div class="notice" role="alert">
       <span>{notice}</span>
-      <button class="mini" onclick={() => (notice = '')} aria-label="Dismiss">✕</button>
+      <button class="iconbtn" onclick={() => (notice = '')} aria-label="Dismiss"><Icon name="x" size={16} /></button>
     </div>
   {/if}
 
@@ -472,23 +515,23 @@
     <nav class="tabbar" aria-label="Panels">
       <button class:on={active === 'data'} onclick={() => (active = 'data')}>Data</button>
       <button class:on={active === 'shell'} onclick={() => (active = 'shell')}>Shell</button>
-      <button class:on={active === 'result'} onclick={() => (active = 'result')}>Results{status ? ' ·' : ''}</button>
+      <button class:on={active === 'result'} onclick={() => (active = 'result')}>Results{busy ? ' …' : status ? ' ·' : ''}</button>
     </nav>
   {/if}
 
   <div class="panes {layout}" bind:this={panesEl}>
     <!-- ===== Data ===== -->
-    <section class="pane" class:collapsed={collapsed.data && layout !== 'tabs'} style={paneStyle(0)} hidden={layout === 'tabs' && active !== 'data'}>
+    <section class="pane" data-pane="data" class:collapsed={collapsed.data && layout !== 'tabs'} style={paneStyle(0)} hidden={layout === 'tabs' && active !== 'data'}>
       {#if collapsed.data && layout !== 'tabs'}
-        <button class="rail" onclick={() => toggle('data')} aria-label="Expand the Data panel"><span>Data</span><span aria-hidden="true">{layout === 'columns' ? '▸' : '▾'}</span></button>
+        <button class="rail" onclick={() => toggle('data')} aria-label="Expand the Data panel"><span>Data</span><Icon name={layout === 'columns' ? 'chevrons-right' : 'chevron-down'} size={16} /></button>
       {:else}
         <header class="phead">
           <div class="row">
             <h2>Data</h2>
             <span class="tools">
               {#if source !== 'sample'}
-                <button class="mini" onclick={() => dataEd?.undo()} title="Undo" aria-label="Undo in the data panel">↶</button>
-                <button class="mini" onclick={() => dataEd?.redo()} title="Redo" aria-label="Redo in the data panel">↷</button>
+                <button class="iconbtn" onclick={() => dataEd?.undo()} title="Undo" aria-label="Undo in the data panel"><Icon name="undo" /></button>
+                <button class="iconbtn" onclick={() => dataEd?.redo()} title="Redo" aria-label="Redo in the data panel"><Icon name="redo" /></button>
                 <button class="mini" onclick={() => (config = '')} title="Clear the data panel (undo brings it back)" disabled={!config}>Clear</button>
               {/if}
               {@render collapseButton('data', 'Data')}
@@ -511,25 +554,37 @@
     {/if}
 
     <!-- ===== Shell ===== -->
-    <section class="pane" class:collapsed={collapsed.shell && layout !== 'tabs'} style={paneStyle(1)} hidden={layout === 'tabs' && active !== 'shell'}>
+    <section class="pane" data-pane="shell" class:collapsed={collapsed.shell && layout !== 'tabs'} style={paneStyle(1)} hidden={layout === 'tabs' && active !== 'shell'}>
       {#if collapsed.shell && layout !== 'tabs'}
-        <button class="rail" onclick={() => toggle('shell')} aria-label="Expand the Shell panel"><span>Shell</span><span aria-hidden="true">{layout === 'columns' ? '▸' : '▾'}</span></button>
+        <button class="rail" onclick={() => toggle('shell')} aria-label="Expand the Shell panel"><span>Shell</span><Icon name={layout === 'columns' ? 'chevrons-right' : 'chevron-down'} size={16} /></button>
       {:else}
         <header class="phead">
           <div class="row">
             <h2>Shell</h2>
             <span class="tools">
-              <button class="mini" onclick={() => shellEd?.undo()} title="Undo" aria-label="Undo in the shell">↶</button>
-              <button class="mini" onclick={() => shellEd?.redo()} title="Redo" aria-label="Redo in the shell">↷</button>
+              <button class="iconbtn" onclick={() => shellEd?.undo()} title="Undo" aria-label="Undo in the shell"><Icon name="undo" /></button>
+              <button class="iconbtn" onclick={() => shellEd?.redo()} title="Redo" aria-label="Redo in the shell"><Icon name="redo" /></button>
               <button class="mini" onclick={() => (script = '')} title="Clear the shell (undo brings it back)" disabled={!script}>Clear</button>
               {@render collapseButton('shell', 'Shell')}
             </span>
           </div>
           <p class="desc">{DESC.shell}</p>
+          {#if usesSearch}
+            <p class="warn" role="note">
+              <Icon name="clock" size={16} />
+              <span>Atlas Search and Vector Search queries can take longer the first time, up to about a minute, because the search index has to build before your query runs.</span>
+            </p>
+          {/if}
           <div class="shell-actions">
-            <button class="mini run-all" onclick={() => execute()} disabled={busy} title="Run every statement in the Shell">▶ Run all</button>
+            <button class="runbtn primary" onclick={() => execute()} disabled={busy} aria-label="Run all statements" title="Run every statement in the Shell (Ctrl or Cmd + Enter)">
+              {#if busy}<span class="spinner" aria-hidden="true"></span>{:else}<Icon name="play" size={16} />{/if}
+              {busy ? 'Running…' : 'Run all'}
+            </button>
             <button class="mini" onclick={() => execute(false, 'selection')} disabled={busy || !hasSelection} title={hasSelection ? 'Run only the highlighted statements' : 'Highlight statements in the Shell to run just those'}>Run selection</button>
             <button class="mini" onclick={() => execute(true, hasSelection ? 'selection' : 'all')} disabled={busy} title="Show the query plan (index use, documents examined) instead of running the statements. Uses the highlighted statements if any.">Explain plan</button>
+            {#if busy}
+              <span class="running" role="status" aria-live="polite"><span class="spinner" aria-hidden="true"></span>{runLabel}</span>
+            {/if}
           </div>
         </header>
         <div class="editor-wrap"><Editor bind:this={shellEd} bind:value={script} dark={isDark()} onrun={runDefault} onselection={(t) => (selection = t)} /></div>
@@ -542,13 +597,13 @@
     {/if}
 
     <!-- ===== Results ===== -->
-    <section class="pane" class:collapsed={collapsed.result && layout !== 'tabs'} style={paneStyle(2)} hidden={layout === 'tabs' && active !== 'result'}>
+    <section class="pane" data-pane="result" class:collapsed={collapsed.result && layout !== 'tabs'} style={paneStyle(2)} hidden={layout === 'tabs' && active !== 'result'}>
       {#if collapsed.result && layout !== 'tabs'}
-        <button class="rail" onclick={() => toggle('result')} aria-label="Expand the Results panel"><span>Results</span><span aria-hidden="true">{layout === 'columns' ? '▸' : '▾'}</span></button>
+        <button class="rail" onclick={() => toggle('result')} aria-label="Expand the Results panel"><span>Results</span><Icon name={layout === 'columns' ? 'chevrons-right' : 'chevron-down'} size={16} /></button>
       {:else}
         <header class="phead">
           <div class="row">
-            <h2>Results <small>{status}</small></h2>
+            <h2>Results <small>{busy ? runLabel : status}</small></h2>
             <span class="tools">
               {#if results}
                 <button class="mini" onclick={() => copy(results, 'Results copied')}>Copy</button>
@@ -559,8 +614,9 @@
           </div>
           <p class="desc">{DESC.result}</p>
         </header>
+        {#if busy}<div class="bar" role="progressbar" aria-label="Running your statements"></div>{/if}
         {#if error}<pre class="error" role="alert">{error}</pre>{/if}
-        <div class="editor-wrap"><Editor bind:value={results} dark={isDark()} readonly /></div>
+        <div class="editor-wrap" class:dim={busy}><Editor bind:value={results} dark={isDark()} readonly /></div>
       {/if}
     </section>
   </div>
@@ -580,6 +636,30 @@
       <button onclick={() => shareDialog.close()}>Close</button>
     </div>
   </div>
+</dialog>
+
+<dialog
+  bind:this={exportDialog}
+  class="dialog wide"
+  aria-labelledby="export-title"
+  onclick={(e) => e.target === exportDialog && exportDialog.close()}
+  onclose={() => (exportView = null)}
+>
+  {#if exportView}
+    <div class="dialog-body">
+      <h2 id="export-title">{exportView.title}</h2>
+      <p class="muted">Preview. Copy what you need, or download it as <code>{exportView.filename}</code>.</p>
+      <textarea class="preview" readonly spellcheck="false" aria-label="Export preview" value={shownText} onfocus={(e) => e.currentTarget.select()}></textarea>
+      {#if truncated}
+        <p class="muted">The preview shows the first {PREVIEW_MAX.toLocaleString()} characters. Copy and Download use the whole thing.</p>
+      {/if}
+      <div class="dialog-actions">
+        <button class="primary" onclick={confirmDownload}><Icon name="download" size={16} /> Download {exportView.filename}</button>
+        <button onclick={() => exportView && copy(exportView.text, 'Copied')}><Icon name="copy" size={16} /> Copy</button>
+        <button onclick={() => exportDialog.close()}>Cancel</button>
+      </div>
+    </div>
+  {/if}
 </dialog>
 
 <style>
@@ -603,18 +683,6 @@
     display: flex;
     gap: 0.45rem;
     align-items: center;
-  }
-  /* Run is the main action: big, Spring Green, with a glow. */
-  .run {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    min-width: 7.5rem;
-    min-height: 2.8rem;
-    padding: 0.5rem 1.5rem;
-    font-size: 1.1rem;
-    justify-content: center;
-    box-shadow: 0 2px 14px rgb(0 237 100 / 35%);
   }
   .more-btn {
     display: none;
@@ -804,15 +872,6 @@
     padding: 0.25rem 0.7rem;
     font-size: 0.82rem;
   }
-  .run-all {
-    background: var(--brand);
-    color: var(--brand-fg);
-    border-color: var(--brand);
-    font-weight: 700;
-  }
-  .collapse {
-    padding: 0.1rem 0.45rem;
-  }
 
   /* A collapsed panel: a thin rail in columns, just its bar in rows. */
   .rail {
@@ -854,6 +913,164 @@
     color: var(--err-fg);
     background: var(--err-bg);
     font-size: 0.85rem;
+  }
+
+  /* Panel shades: each panel has its own slightly different tone (header, editor, gutter). */
+  .pane {
+    --ph: var(--pane-shell-head);
+    --editor-bg: var(--pane-shell);
+    --editor-gutter: var(--pane-shell-gutter);
+    background: var(--editor-bg);
+  }
+  .pane[data-pane='data'] {
+    --ph: var(--pane-data-head);
+    --editor-bg: var(--pane-data);
+    --editor-gutter: var(--pane-data-gutter);
+  }
+  .pane[data-pane='result'] {
+    --ph: var(--pane-result-head);
+    --editor-bg: var(--pane-result);
+    --editor-gutter: var(--pane-result-gutter);
+  }
+  .phead {
+    background: var(--ph);
+  }
+  .rail {
+    background: var(--ph);
+  }
+
+  /* Icon buttons: a visible border and a real hit area, readable in light and dark. */
+  .iconbtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    min-height: 0;
+    height: 2rem;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--fg);
+    cursor: pointer;
+  }
+  .iconbtn:hover:not(:disabled),
+  .iconbtn:focus-visible {
+    background: var(--surface-2);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .iconbtn:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+  .tools {
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  /* The one Run button lives in the Shell panel, so it is big and green. */
+  .runbtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 2.5rem;
+    padding: 0.4rem 1.3rem;
+    font-size: 1rem;
+    font-weight: 700;
+    box-shadow: 0 2px 12px rgb(0 237 100 / 30%);
+  }
+  .shell-actions {
+    align-items: center;
+  }
+
+  /* "Still running" markers: a spinner, the elapsed seconds, and a sliding bar over the results. */
+  .spinner {
+    width: 1em;
+    height: 1em;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    display: inline-block;
+    animation: spin 0.8s linear infinite;
+  }
+  .running {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin-left: 0.3rem;
+    font-size: 0.85rem;
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .bar {
+    height: 3px;
+    background: linear-gradient(90deg, transparent, var(--brand), transparent);
+    background-size: 40% 100%;
+    background-repeat: no-repeat;
+    animation: slide 1.1s ease-in-out infinite;
+  }
+  .editor-wrap.dim {
+    opacity: 0.55;
+    transition: opacity 0.2s;
+  }
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  @keyframes slide {
+    from {
+      background-position: -40% 0;
+    }
+    to {
+      background-position: 140% 0;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .spinner,
+    .bar {
+      animation-duration: 3s;
+    }
+  }
+
+  /* Heads-up for Search / Vector Search runs. */
+  .warn {
+    display: flex;
+    gap: 0.5rem;
+    align-items: flex-start;
+    margin: 0.4rem 0 0;
+    padding: 0.4rem 0.6rem;
+    font-size: 0.82rem;
+    line-height: 1.35;
+    color: var(--fg);
+    background: color-mix(in srgb, var(--brand) 14%, transparent);
+    border: 1px solid color-mix(in srgb, var(--brand) 45%, transparent);
+    border-radius: 8px;
+  }
+  .warn :global(svg) {
+    flex: none;
+    margin-top: 0.1rem;
+  }
+
+  /* Export preview: a selectable, copy-friendly box. */
+  .dialog.wide {
+    width: min(48rem, 95vw);
+  }
+  .preview {
+    width: 100%;
+    height: min(50vh, 26rem);
+    resize: vertical;
+    padding: 0.6rem 0.75rem;
+    font-family: var(--font-mono);
+    font-size: 0.82rem;
+    line-height: 1.45;
+    white-space: pre;
+    overflow: auto;
+    color: var(--fg);
+    background: var(--editor-bg, var(--surface));
+    border: 1px solid var(--border);
+    border-radius: 8px;
   }
 
   /* share dialog */
@@ -956,12 +1173,6 @@
     }
     .actions .menuwrap > button {
       width: 100%;
-    }
-    .actions .run {
-      flex: 2;
-      min-width: 0;
-      padding: 0.5rem 0.9rem;
-      font-size: 1.05rem;
     }
     .more-btn {
       margin-left: 0;
