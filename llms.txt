@@ -1,6 +1,6 @@
 # MongoDB Playground
 
-> An online MongoDB shell for builders, human and agent. Run mongosh-style statements (CRUD, aggregation,
+> An online MongoDB playground for builders, human and agent. Run mongosh-style statements (CRUD, aggregation,
 > indexes, Atlas Search, Vector Search) against documents you supply, read query plans, and share a UUID link.
 > Rust API + Svelte UI + Tauri desktop app. Apache-2.0. Agents are first-class users.
 
@@ -9,6 +9,11 @@
 - [Live API reference](crates/api/src/llms.txt): the quick start the running service serves at /llms.txt
 - [OpenAPI 3.1](crates/api/src/openapi.json): REST API under /api/v1
 - [Run it yourself](docs/run-it-yourself.md): local Atlas CLI deployment, free M0 cluster, ephemeral cluster, Docker Compose
+
+## Markdown for agents
+- Every page of the live site is also served as Markdown: send `Accept: text/markdown`, or add `.md` to the path
+  (`/index.md`, `/docs/quickstart.md`, `/docs/api.md`, `/docs/mcp.md`, `/docs/run-it-yourself.md`, `/about.md`).
+  The text lives in [crates/api/src/pages](crates/api/src/pages).
 
 ## Understand it
 - [README](README.md): overview, quick start, testing

@@ -3,32 +3,24 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>Online MongoDB Shell – Test Your Queries in the Browser | MongoDB Playground</title>
-    <meta name="description" content="Free online MongoDB shell and query playground. Paste documents, run mongosh-style find, aggregate, update and delete commands, see query plans, try Atlas Search and Vector Search, then share or export. No install, no sign-up." />
-    <meta name="keywords" content="online mongodb shell, mongodb playground, mongosh online, test mongodb queries, mongodb query tester, mongodb aggregation playground, mongodb sandbox, run mongodb in browser, mongodb explain, atlas search playground, vector search playground, mongodb sample data, mongodb query practice, mongodb mcp server" />
+    <title>Online MongoDB Playground – Test Queries, Aggregations &amp; Atlas Search</title>
+    <meta name="description" content="Free online MongoDB playground on a real cluster: run mongosh-style queries and aggregations, see query plans, try Atlas Search and Vector Search, share links. No sign-up." />
+    <meta name="keywords" content="online mongodb playground, mongodb playground, mongodb online compiler, mongodb online editor, online mongodb shell, mongosh online, test mongodb queries, mongodb query tester, mongodb aggregation playground, atlas search playground, vector search playground, mongodb sandbox, mongodb explain, mongodb mcp server" />
     <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large" />
     <meta name="theme-color" content="#001E2B" />
-    <script>
-      // Set the theme before first paint so dark mode does not flash light.
-      (function () {
-        try {
-          var t = localStorage.getItem('theme') || 'auto';
-          var dark = t === 'dark' || (t === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
-          document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-        } catch (e) {}
-      })();
-    </script>
+    <script src="/theme-init.js"></script>
     <link rel="canonical" href="https://mongoplayground.com/" />
+    <link rel="alternate" type="text/markdown" href="/index.md" title="Markdown version for agents" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="MongoDB Playground" />
-    <meta property="og:title" content="Online MongoDB Shell – Test Your Queries in the Browser" />
-    <meta property="og:description" content="Run mongosh-style commands against your own documents, see query plans, try Atlas Search and Vector Search, then share or export. Free, no sign-up." />
+    <meta property="og:title" content="Online MongoDB Playground – Test Queries, Aggregations &amp; Atlas Search" />
+    <meta property="og:description" content="Free online MongoDB playground on a real cluster: run mongosh-style queries and aggregations, see query plans, try Atlas Search and Vector Search, share links. No sign-up." />
     <meta property="og:url" content="https://mongoplayground.com/" />
     <meta name="twitter:card" content="summary" />
-    <meta name="twitter:title" content="Online MongoDB Shell – Test Your Queries in the Browser" />
-    <meta name="twitter:description" content="A free MongoDB playground: run mongosh-style commands, explain queries, share and export." />
+    <meta name="twitter:title" content="Online MongoDB Playground – Test Queries, Aggregations &amp; Atlas Search" />
+    <meta name="twitter:description" content="Free online MongoDB playground on a real cluster: run mongosh-style queries and aggregations, see query plans, try Atlas Search and Vector Search, share links. No sign-up." />
 
     <script type="application/ld+json">
       {
@@ -38,9 +30,9 @@
         "url": "https://mongoplayground.com/",
         "applicationCategory": "DeveloperApplication",
         "operatingSystem": "Any (web browser)",
-        "description": "An online MongoDB shell and query playground: run find, aggregate, update and delete commands, view query plans, try Atlas Search and Vector Search, share and export.",
+        "description": "An online MongoDB playground on a real cluster: run find, aggregate, update and delete commands, view query plans, try Atlas Search and Vector Search, share and export.",
         "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
-        "keywords": "online mongodb shell, mongodb playground, test mongodb queries, mongosh online, atlas search, vector search",
+        "keywords": "online mongodb playground, mongodb playground, mongodb online compiler, mongodb online editor, online mongodb shell, mongosh online, test mongodb queries, mongodb query tester, mongodb aggregation playground, atlas search playground, vector search playground, mongodb sandbox, mongodb explain, mongodb mcp server",
         "featureList": [
           "mongosh-style shell with several statements per run",
           "Documents, indexes, Atlas Search and Vector Search indexes in one data panel",
@@ -55,14 +47,15 @@
     <div id="app">
       <!-- Shown to crawlers and before the app loads; replaced when the app starts. -->
       <main style="font-family: system-ui, sans-serif; max-width: 46rem; margin: 3rem auto; padding: 0 1rem">
-        <h1>MongoDB Playground: an online MongoDB shell to test your queries</h1>
+        <h1>Online MongoDB Playground</h1>
+        <p><strong>Test MongoDB queries, aggregation pipelines, Atlas Search and Vector Search in your browser, on a real MongoDB cluster.</strong></p>
         <p>
           Paste documents, run mongosh-style <code>find</code>, <code>aggregate</code>, <code>update</code> and
           <code>delete</code> commands, view query plans, build indexes, try Atlas Search and Vector Search, then
           share a link or export a script. Free, no install, no sign-up.
         </p>
         <ul>
-          <li><a href="/">Playground</a>: the online MongoDB shell</li>
+          <li><a href="/">Playground</a>: the online MongoDB playground</li>
           <li><a href="/docs/quickstart">Quickstart</a>: test a MongoDB query in 60 seconds</li>
           <li><a href="/docs/api">REST API</a> for running scripts over HTTP</li>
           <li><a href="/docs/mcp">MCP server</a> so AI agents can test MongoDB queries</li>

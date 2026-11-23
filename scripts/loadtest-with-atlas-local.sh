@@ -24,7 +24,7 @@ atlas local delete "$NAME" --force >/dev/null 2>&1 || true
 atlas local setup "$NAME" --port "$PORT" --force
 
 cargo build --release -p playground-api
-PORT="$API_PORT" STATS_DISABLED=1 RATE_BASIC_BURST=100000 RATE_BASIC_PER_SEC=100000 RATE_VERIFIED_BURST=100000 RATE_VERIFIED_PER_SEC=100000 ./target/release/api &
+PORT="$API_PORT" STATS_DISABLED=1 SHARES_PER_CLIENT_PER_DAY=100000 RATE_BASIC_BURST=100000 RATE_BASIC_PER_SEC=100000 RATE_VERIFIED_BURST=100000 RATE_VERIFIED_PER_SEC=100000 ./target/release/api &
 API_PID=$!
 for _ in $(seq 1 30); do
   kill -0 "$API_PID" 2>/dev/null || { echo "the API exited before it was healthy" >&2; exit 1; }

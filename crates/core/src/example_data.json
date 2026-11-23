@@ -1,0 +1,428 @@
+{
+ "database": "sample_playground",
+ "collections": [
+  {
+   "name": "movies",
+   "documents": [
+    {
+     "title": "The Matrix",
+     "plot": "a hacker learns that reality is a simulation and joins a rebellion",
+     "year": 1999,
+     "genres": [
+      "Action",
+      "Sci-Fi"
+     ]
+    },
+    {
+     "title": "Toy Story",
+     "plot": "toys come to life when humans leave the room",
+     "year": 1995,
+     "genres": [
+      "Animation",
+      "Family"
+     ]
+    },
+    {
+     "title": "Alien",
+     "plot": "a crew meets a deadly creature in space",
+     "year": 1979,
+     "genres": [
+      "Horror",
+      "Sci-Fi"
+     ]
+    },
+    {
+     "title": "Arrival",
+     "plot": "a linguist deciphers an alien language to prevent a war",
+     "year": 2016,
+     "genres": [
+      "Drama",
+      "Sci-Fi"
+     ]
+    },
+    {
+     "title": "Blade Runner",
+     "plot": "a detective hunts replicants in a rainy future city",
+     "year": 1982,
+     "genres": [
+      "Sci-Fi",
+      "Noir"
+     ]
+    },
+    {
+     "title": "Jaws",
+     "plot": "a shark terrorizes a beach town and three men go hunting it",
+     "year": 1975,
+     "genres": [
+      "Thriller"
+     ]
+    },
+    {
+     "title": "Finding Nemo",
+     "plot": "a clownfish crosses the ocean to rescue his son",
+     "year": 2003,
+     "genres": [
+      "Animation",
+      "Family"
+     ]
+    },
+    {
+     "title": "Inception",
+     "plot": "a thief enters dreams to plant an idea",
+     "year": 2010,
+     "genres": [
+      "Action",
+      "Sci-Fi"
+     ]
+    },
+    {
+     "title": "Interstellar",
+     "plot": "explorers travel through a wormhole to save humanity",
+     "year": 2014,
+     "genres": [
+      "Drama",
+      "Sci-Fi"
+     ]
+    },
+    {
+     "title": "Casablanca",
+     "plot": "a nightclub owner in wartime Morocco meets a lost love",
+     "year": 1942,
+     "genres": [
+      "Drama",
+      "Romance"
+     ]
+    },
+    {
+     "title": "The Godfather",
+     "plot": "the aging head of a crime family hands power to his reluctant son",
+     "year": 1972,
+     "genres": [
+      "Crime",
+      "Drama"
+     ]
+    },
+    {
+     "title": "Pulp Fiction",
+     "plot": "hitmen, a boxer and a gangster's wife cross paths in Los Angeles",
+     "year": 1994,
+     "genres": [
+      "Crime"
+     ]
+    },
+    {
+     "title": "Spirited Away",
+     "plot": "a girl works in a bathhouse for spirits to free her parents",
+     "year": 2001,
+     "genres": [
+      "Animation",
+      "Fantasy"
+     ]
+    },
+    {
+     "title": "Mad Max: Fury Road",
+     "plot": "a drifter helps women escape a tyrant across a desert",
+     "year": 2015,
+     "genres": [
+      "Action"
+     ]
+    },
+    {
+     "title": "WALL-E",
+     "plot": "a lonely robot cleans a deserted earth and finds love",
+     "year": 2008,
+     "genres": [
+      "Animation",
+      "Sci-Fi"
+     ]
+    },
+    {
+     "title": "The Shining",
+     "plot": "a family caretaker winter in an isolated hotel goes mad",
+     "year": 1980,
+     "genres": [
+      "Horror"
+     ]
+    },
+    {
+     "title": "Back to the Future",
+     "plot": "a teenager travels thirty years into the past in a time machine",
+     "year": 1985,
+     "genres": [
+      "Comedy",
+      "Sci-Fi"
+     ]
+    },
+    {
+     "title": "Amelie",
+     "plot": "a shy waitress secretly improves the lives of those around her",
+     "year": 2001,
+     "genres": [
+      "Comedy",
+      "Romance"
+     ]
+    },
+    {
+     "title": "Parasite",
+     "plot": "a poor family schemes its way into a wealthy household",
+     "year": 2019,
+     "genres": [
+      "Thriller",
+      "Drama"
+     ]
+    },
+    {
+     "title": "Gladiator",
+     "plot": "a betrayed general becomes a gladiator and seeks revenge",
+     "year": 2000,
+     "genres": [
+      "Action",
+      "Drama"
+     ]
+    },
+    {
+     "title": "Coco",
+     "plot": "a boy enters the land of the dead to find his great-great-grandfather",
+     "year": 2017,
+     "genres": [
+      "Animation",
+      "Family"
+     ]
+    },
+    {
+     "title": "Memento",
+     "plot": "a man with no short-term memory hunts his wife's killer",
+     "year": 2000,
+     "genres": [
+      "Thriller"
+     ]
+    },
+    {
+     "title": "Ghostbusters",
+     "plot": "three scientists start a business catching ghosts in New York",
+     "year": 1984,
+     "genres": [
+      "Comedy",
+      "Fantasy"
+     ]
+    },
+    {
+     "title": "Moon",
+     "plot": "a lone astronaut on a lunar base discovers a secret about himself",
+     "year": 2009,
+     "genres": [
+      "Drama",
+      "Sci-Fi"
+     ]
+    }
+   ],
+   "searchIndex": {
+    "name": "default",
+    "definition": {
+     "mappings": {
+      "dynamic": true
+     }
+    }
+   },
+   "probe": [
+    {
+     "$search": {
+      "index": "default",
+      "text": {
+       "query": "alien",
+       "path": [
+        "title",
+        "plot"
+       ]
+      }
+     }
+    },
+    {
+     "$limit": 1
+    }
+   ]
+  },
+  {
+   "name": "items",
+   "documents": [
+    {
+     "name": "red apple",
+     "embedding": [
+      0.9,
+      0.1,
+      0.0
+     ],
+     "kind": "fruit"
+    },
+    {
+     "name": "green apple",
+     "embedding": [
+      0.8,
+      0.2,
+      0.1
+     ],
+     "kind": "fruit"
+    },
+    {
+     "name": "banana",
+     "embedding": [
+      0.7,
+      0.5,
+      0.0
+     ],
+     "kind": "fruit"
+    },
+    {
+     "name": "cherry",
+     "embedding": [
+      0.95,
+      0.05,
+      0.05
+     ],
+     "kind": "fruit"
+    },
+    {
+     "name": "pear",
+     "embedding": [
+      0.6,
+      0.4,
+      0.1
+     ],
+     "kind": "fruit"
+    },
+    {
+     "name": "orange",
+     "embedding": [
+      0.8,
+      0.4,
+      0.0
+     ],
+     "kind": "fruit"
+    },
+    {
+     "name": "blue car",
+     "embedding": [
+      0.0,
+      0.1,
+      0.9
+     ],
+     "kind": "vehicle"
+    },
+    {
+     "name": "red car",
+     "embedding": [
+      0.3,
+      0.0,
+      0.8
+     ],
+     "kind": "vehicle"
+    },
+    {
+     "name": "bicycle",
+     "embedding": [
+      0.1,
+      0.2,
+      0.7
+     ],
+     "kind": "vehicle"
+    },
+    {
+     "name": "bus",
+     "embedding": [
+      0.05,
+      0.1,
+      0.95
+     ],
+     "kind": "vehicle"
+    },
+    {
+     "name": "tractor",
+     "embedding": [
+      0.2,
+      0.3,
+      0.75
+     ],
+     "kind": "vehicle"
+    },
+    {
+     "name": "scooter",
+     "embedding": [
+      0.1,
+      0.15,
+      0.8
+     ],
+     "kind": "vehicle"
+    },
+    {
+     "name": "oak tree",
+     "embedding": [
+      0.1,
+      0.9,
+      0.1
+     ],
+     "kind": "plant"
+    },
+    {
+     "name": "rose",
+     "embedding": [
+      0.4,
+      0.8,
+      0.1
+     ],
+     "kind": "plant"
+    },
+    {
+     "name": "cactus",
+     "embedding": [
+      0.2,
+      0.85,
+      0.05
+     ],
+     "kind": "plant"
+    },
+    {
+     "name": "fern",
+     "embedding": [
+      0.05,
+      0.95,
+      0.1
+     ],
+     "kind": "plant"
+    }
+   ],
+   "searchIndex": {
+    "name": "vector_index",
+    "type": "vectorSearch",
+    "definition": {
+     "fields": [
+      {
+       "type": "vector",
+       "path": "embedding",
+       "numDimensions": 3,
+       "similarity": "cosine"
+      },
+      {
+       "type": "filter",
+       "path": "kind"
+      }
+     ]
+    }
+   },
+   "probe": [
+    {
+     "$vectorSearch": {
+      "index": "vector_index",
+      "path": "embedding",
+      "queryVector": [
+       0.85,
+       0.15,
+       0.05
+      ],
+      "numCandidates": 16,
+      "limit": 1
+     }
+    }
+   ]
+  }
+ ]
+}

@@ -1,6 +1,6 @@
 [package]
 name = "playground-api"
-description = "REST API and MCP server for the MongoDB Playground, an online MongoDB shell for humans and agents"
+description = "REST API and MCP server for the MongoDB Playground, an online MongoDB playground for humans and agents"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

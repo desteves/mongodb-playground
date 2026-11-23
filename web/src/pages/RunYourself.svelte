@@ -1,6 +1,6 @@
 <script lang="ts">
   import CodeBlock from '../lib/CodeBlock.svelte';
-  import { site, registerUrl } from '../lib/site.svelte';
+  import { site, registerUrl, mongodbUrl } from '../lib/site.svelte';
 
   const g = $derived(site.guide);
   const label = (u: string) => u.replace(/^https?:\/\//, '');
@@ -15,16 +15,26 @@
     <span class="muted">Free forever, 512 MB, no credit card.</span>
   </p>
 
-  {#each g?.options ?? [] as o}
+  {#if g?.choose?.length}
+    <h2>Which one should I use?</h2>
+    <ul class="choose">
+      {#each g.choose as c}
+        <li>{c.want}: <a href={`#${c.use}`}>{g.options.find((o) => o.id === c.use)?.title ?? c.use}</a></li>
+      {/each}
+    </ul>
+  {/if}
+
+  {#each g?.options ?? [] as o, i}
+    {#if o.group && o.group !== g?.options[i - 1]?.group}<h2 class="group">{o.group}</h2>{/if}
     <section id={o.id}>
-      <h2>{o.title}</h2>
+      <h3>{o.title}</h3>
       {#if o.summary}<p class="muted">{o.summary}</p>{/if}
       <ol>
         {#each o.steps as s}
           <li>
             {s.label}
             {#if s.command}<CodeBlock code={s.command} />{/if}
-            {#if s.url}<a href={s.url} target="_blank" rel="noopener">{label(s.url)} ↗</a>{/if}
+            {#if s.url}<a href={mongodbUrl(s.url)} target="_blank" rel="noopener">{label(s.url)} ↗</a>{/if}
           </li>
         {/each}
       </ol>
@@ -35,3 +45,18 @@
 
   {#if g?.note}<p class="muted">{g.note}</p>{/if}
 </div>
+
+<style>
+  .group {
+    margin-top: 2.2rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+  }
+  section h3 {
+    margin: 1.4rem 0 0.3rem;
+    font-size: 1.15rem;
+  }
+  .choose {
+    line-height: 1.7;
+  }
+</style>

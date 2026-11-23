@@ -1,6 +1,6 @@
 {
   "title": "Run it yourself, or get a cluster",
-  "summary": "The playground runs on a hosted site, on your machine against a local MongoDB, against your own Atlas cluster (free or ephemeral), as a desktop app, or from an agent over MCP.",
+  "summary": "Use the hosted playground, run it on your machine against a local MongoDB, or point it at a real Atlas cluster: your own free one, or a temporary ephemeral one. Agents can use it over MCP or the REST API.",
   "baseUrl": "{origin}",
   "atlasRegister": {
     "url": "https://www.mongodb.com/cloud/atlas/register",
@@ -26,12 +26,13 @@
           "label": "Machine-readable docs",
           "url": "{origin}/llms.txt"
         }
-      ]
+      ],
+      "group": "Use it now"
     },
     {
       "id": "mcp",
       "title": "Use it from an agent (MCP)",
-      "summary": "A stateless Streamable HTTP MCP server. Tools: run_query, validate_query, explain_query, share_query, get_shared, list_examples, get_limits, get_setup_guide.",
+      "summary": "A stateless Streamable HTTP MCP server. Tools: run_query, validate_query, explain_query, share_query, get_shared, export_playground, list_examples, get_setup_guide, get_limits.",
       "steps": [
         {
           "label": "Claude Code",
@@ -49,7 +50,8 @@
           "label": "OpenAPI 3.1",
           "url": "{origin}/api/v1/openapi.json"
         }
-      ]
+      ],
+      "group": "Use it now"
     },
     {
       "id": "atlas-local",
@@ -76,12 +78,41 @@
           "label": "Delete the deployment when you are done",
           "command": "atlas local delete playground --force"
         }
-      ]
+      ],
+      "group": "Run it on your machine"
+    },
+    {
+      "id": "docker",
+      "title": "Docker Compose",
+      "summary": "The API, the web app and an Atlas Local MongoDB (search works) in one command.",
+      "steps": [
+        {
+          "label": "Start it",
+          "command": "docker compose up --build"
+        },
+        {
+          "label": "Open it",
+          "url": "http://localhost:8080"
+        }
+      ],
+      "group": "Run it on your machine"
+    },
+    {
+      "id": "desktop",
+      "title": "Desktop app (Tauri)",
+      "summary": "Runs queries in-process against a local MongoDB. No network service.",
+      "steps": [
+        {
+          "label": "Run it",
+          "command": "cd web && npm install && npm run tauri dev"
+        }
+      ],
+      "group": "Run it on your machine"
     },
     {
       "id": "atlas-free",
       "title": "Free-forever Atlas cluster (M0)",
-      "summary": "512 MB, no credit card, one per project. Good for real, persistent use.",
+      "summary": "A free cluster in your own Atlas account: 512 MB, no credit card, one per project. It stays until you delete it, so your data persists.",
       "steps": [
         {
           "label": "Register for Atlas",
@@ -106,57 +137,74 @@
         {
           "label": "Point the API at it",
           "command": "MONGODB_URI='<connection string>' cargo run -p playground-api"
+        },
+        {
+          "label": "When you are done, delete the cluster if you do not want to keep it",
+          "command": "atlas clusters delete <cluster-name> --force"
         }
-      ]
+      ],
+      "group": "Use a real Atlas cluster"
     },
     {
       "id": "atlas-ephemeral",
-      "title": "Ephemeral Atlas cluster (create, use, delete)",
-      "summary": "A throwaway cloud cluster for a demo or a workshop. Create it, use it, delete it so nothing keeps running.",
+      "title": "Ephemeral Atlas cluster (temporary, expires in 7 days)",
+      "summary": "A temporary free Atlas cluster created from the terminal. Atlas pauses it 2 days after creation and deletes it 7 days after creation unless you claim it into an Atlas account, which turns it into a normal free cluster with no expiry. Until it is claimed you can read and write data, but you cannot scale it, add database users or change network access. It runs on AWS us-east-1 and accepts connections from any IP address, so keep sensitive data out. This is a preview Atlas API: it can change, and creating one means you accept the MongoDB Cloud Terms of Service.",
       "steps": [
         {
-          "label": "Create a project and a free cluster",
-          "command": "atlas projects create playground-tmp && atlas clusters create playground --tier M0 --provider GCP --region CENTRAL_US"
+          "label": "Check that your Atlas CLI has the command (upgrade the CLI if it is missing)",
+          "command": "atlas api ephemeralClusters createEphemeralCluster --help"
         },
         {
-          "label": "Create a user and allow your IP",
-          "command": "atlas dbusers create readWriteAnyDatabase --username pg --password '<password>' && atlas accessLists create --currentIp"
+          "label": "Create the cluster. The request body is described in the Atlas Admin API docs; the response has the connection and claim details",
+          "command": "atlas api ephemeralClusters createEphemeralCluster --file request.json"
         },
         {
-          "label": "Use it (connection string from the Atlas CLI)",
-          "command": "atlas clusters connectionStrings describe playground"
+          "label": "Request body reference (preview API)",
+          "url": "https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/preview/operation/operation-createephemeralcluster"
         },
         {
-          "label": "Delete everything",
-          "command": "atlas clusters delete playground --force && atlas projects delete <project-id> --force"
+          "label": "Point the API at it, using the connection string from the response",
+          "command": "MONGODB_URI='<connection string from the response>' cargo run -p playground-api"
+        },
+        {
+          "label": "Look it up again later",
+          "command": "atlas api ephemeralClusters getEphemeralCluster --help"
+        },
+        {
+          "label": "Keep it or let it go: claim it within 7 days using the claim details, or do nothing and Atlas deletes it. There is nothing to clean up"
         }
-      ]
+      ],
+      "group": "Use a real Atlas cluster"
+    }
+  ],
+  "choose": [
+    {
+      "want": "Just try it, nothing to install",
+      "use": "hosted"
     },
     {
-      "id": "docker",
-      "title": "Docker Compose",
-      "summary": "The API, the web app and an Atlas Local MongoDB (search works) in one command.",
-      "steps": [
-        {
-          "label": "Start it",
-          "command": "docker compose up --build"
-        },
-        {
-          "label": "Open it",
-          "url": "http://localhost:8080"
-        }
-      ]
+      "want": "Call it from an AI agent, a script or CI",
+      "use": "mcp"
     },
     {
-      "id": "desktop",
-      "title": "Desktop app (Tauri)",
-      "summary": "Runs queries in-process against a local MongoDB. No network service.",
-      "steps": [
-        {
-          "label": "Run it",
-          "command": "cd web && npm install && npm run tauri dev"
-        }
-      ]
+      "want": "Work offline with Atlas Search and Vector Search, no account",
+      "use": "atlas-local"
+    },
+    {
+      "want": "Run everything in containers",
+      "use": "docker"
+    },
+    {
+      "want": "A desktop app on a local MongoDB",
+      "use": "desktop"
+    },
+    {
+      "want": "Keep your data in the cloud, free",
+      "use": "atlas-free"
+    },
+    {
+      "want": "A temporary cloud cluster for a demo or workshop",
+      "use": "atlas-ephemeral"
     }
   ]
 }

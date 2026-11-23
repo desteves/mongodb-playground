@@ -660,7 +660,7 @@ async fn create_search_index(db: &Database, coll: &str, spec: &Document) -> Resu
 }
 
 /// Poll until the index is queryable; the caller's overall time budget bounds the wait.
-async fn wait_for_search_index(db: &Database, coll: &str, name: &str) -> Result<()> {
+pub(crate) async fn wait_for_search_index(db: &Database, coll: &str, name: &str) -> Result<()> {
     loop {
         let res = db
             .run_command(doc! {

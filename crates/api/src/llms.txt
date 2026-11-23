@@ -1,6 +1,6 @@
 # MongoDB Playground
 
-> A MongoDB shell in your browser or your agent. Write mongosh-style statements, run them in order against
+> An online MongoDB playground for your browser and your agent. Write mongosh-style statements, run them in order against
 > documents you supply, and read a transcript. Each run uses a throwaway database that is deleted afterwards.
 > No account needed. Built for agents as much as people.
 
@@ -20,6 +20,11 @@ MCP (Streamable HTTP, stateless, JSON responses): POST /api/v1/mcp (also at /mcp
   Tools: run_query, validate_query, explain_query, share_query, get_shared, export_playground, list_examples, get_setup_guide, get_limits
 MCP discovery card: GET /.well-known/mcp.json
   Claude Code: claude mcp add --transport http mongodb-playground <this site>/mcp
+
+Markdown for agents: every page of the site is also served as Markdown, so you do not need to run a browser.
+  Send `Accept: text/markdown` to the page URL, or add `.md` to the path:
+    /index.md (home), /docs/quickstart.md, /docs/api.md, /docs/mcp.md, /docs/run-it-yourself.md, /about.md
+  Responses are `text/markdown` with `Vary: Accept`, an `x-markdown-tokens` estimate and a `content-signal` header.
 
 ## Request: a script and a data panel
 
@@ -90,6 +95,7 @@ still run so the plans have data and indexes), and "datasource": {"sample": "sam
 | timeout          | 408  | run exceeded the time budget                          |
 | not_found        | 404  | unknown or expired share id                           |
 | busy             | 503  | too many search-index runs at once; retry shortly     |
+| capacity         | 503  | share storage is full; no new share links for now     |
 | rate_limited     | 429  | too many requests from this client; see Retry-After   |
 | unavailable      | 503  | database temporarily unavailable; retry               |
 (*) inside a script a database_error is reported on the statement with HTTP 200 and "ok": false.
@@ -105,7 +111,7 @@ runs ONE operation and returns {"results": [...], "write": {...}, "explain": {..
 POST /api/v1/share (same body as /run; only valid playgrounds) -> {"id": "...", "url": "/p/<id>"}.
 GET /api/v1/p/<id> returns it exactly as saved (comments and regex literals included); send it back to /run
 as-is (drop `id` and `createdAt`). Links expire after 90 days without a
-view; limit 4 MB. MCP: share_query, get_shared.
+view; limit 4 MB. Each client address may create 30 links a day (then 429 with Retry-After). MCP: share_query, get_shared.
 
 ## Export
 

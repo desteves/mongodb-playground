@@ -103,18 +103,20 @@ module "iam" {
 }
 
 module "runtime" {
-  source          = "./modules/runtime"
-  project_id      = var.project_id
-  region          = var.region
-  service_account = module.iam.runtime_email
-  network         = module.network.network_name
-  subnetwork      = module.network.subnetwork_name
-  secret_ids      = module.secrets.secret_ids
-  concurrency     = var.max_pool_size
-  cluster_tier    = var.cluster_tier
-  max_instances   = var.max_instances
-  domain          = var.domain
-  internal_token  = random_password.internal_token.result
+  source              = "./modules/runtime"
+  project_id          = var.project_id
+  region              = var.region
+  service_account     = module.iam.runtime_email
+  network             = module.network.network_name
+  subnetwork          = module.network.subnetwork_name
+  secret_ids          = module.secrets.secret_ids
+  concurrency         = var.max_pool_size
+  cluster_tier        = var.cluster_tier
+  max_instances       = var.max_instances
+  min_instances       = var.min_instances
+  feature_sample_data = var.feature_sample_data
+  domain              = var.domain
+  internal_token      = random_password.internal_token.result
   # Empty when Turnstile is off.
   turnstile_site_key = local.turnstile_site_key
   depends_on         = [module.secrets, module.network]

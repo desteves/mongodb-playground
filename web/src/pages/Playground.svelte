@@ -70,6 +70,10 @@
   let script = $state(INITIAL_SCRIPT);
   let selection = $state(''); // the highlighted text in the shell
   let results = $state('');
+  // A multi-megabyte result makes the editor sluggish, so show the first part and keep the rest for Copy and export.
+  const SHOW_LIMIT = 200_000;
+  const clipped = $derived(results.length > SHOW_LIMIT);
+  const shown = $derived(clipped ? results.slice(0, SHOW_LIMIT) + '\n\n// ... shown the first 200 KB; Copy or Export has the full result' : results);
   let output = $state<ScriptOutput | null>(null);
   let status = $state('');
   let error = $state('');
@@ -473,6 +477,7 @@
           {#each examples as ex}<option value={ex.id}>{ex.title}</option>{/each}
         </optgroup>
       </select>
+      <a class="btn" href="/docs/quickstart" title="A 60-second tour of the playground">Quickstart</a>
       <button class="reset" onclick={reset} disabled={pristine} title="Back to the single-collection template (undo brings your work back)">Reset</button>
       {#if sampleEnabled}
         <label>
@@ -616,7 +621,8 @@
         </header>
         {#if busy}<div class="bar" role="progressbar" aria-label="Running your statements"></div>{/if}
         {#if error}<pre class="error" role="alert">{error}</pre>{/if}
-        <div class="editor-wrap" class:dim={busy}><Editor bind:value={results} dark={isDark()} readonly /></div>
+        {#if clipped}<p class="desc">The result is {Math.round(results.length / 1000).toLocaleString()} KB, so only the first 200 KB is shown. Copy and Export include all of it.</p>{/if}
+        <div class="editor-wrap" class:dim={busy}><Editor value={shown} dark={isDark()} readonly /></div>
       {/if}
     </section>
   </div>

@@ -1,12 +1,24 @@
 # Run it yourself, or get a cluster
 
-The playground runs on a hosted site, on your machine against a local MongoDB, against your own Atlas cluster (free or ephemeral), as a desktop app, or from an agent over MCP.
+Use the hosted playground, run it on your machine against a local MongoDB, or point it at a real Atlas cluster: your own free one, or a temporary ephemeral one. Agents can use it over MCP or the REST API.
 
-> Generated from `crates/core/src/guide.json` (also served at `GET /api/v1/guide` and by the MCP tool `get_setup_guide`). Replace `{origin}` with the site you are using, for example `https://mongoplayground.com` or `http://localhost:8080`.
+> Generated from `crates/core/src/guide.json` by `scripts/gen-run-it-yourself.py` (also served at `GET /api/v1/guide`, by the MCP tool `get_setup_guide`, and as Markdown at `/docs/run-it-yourself.md`). Replace `{origin}` with the site you are using, for example `https://mongoplayground.com` or `http://localhost:8080`.
 
 **Free-forever Atlas cluster (M0, 512 MB, no credit card):** [https://www.mongodb.com/cloud/atlas/register?utm_campaign=devrel&utm_source=third-party-content&utm_medium=cta&utm_content=mongodb-playground&utm_term=diana.esteves](https://www.mongodb.com/cloud/atlas/register?utm_campaign=devrel&utm_source=third-party-content&utm_medium=cta&utm_content=mongodb-playground&utm_term=diana.esteves)
 
-## Use the hosted playground
+## Which one should I use?
+
+- Just try it, nothing to install: **Use the hosted playground**
+- Call it from an AI agent, a script or CI: **Use it from an agent (MCP)**
+- Work offline with Atlas Search and Vector Search, no account: **Run locally with the Atlas CLI (no account, includes Atlas Search)**
+- Run everything in containers: **Docker Compose**
+- A desktop app on a local MongoDB: **Desktop app (Tauri)**
+- Keep your data in the cloud, free: **Free-forever Atlas cluster (M0)**
+- A temporary cloud cluster for a demo or workshop: **Ephemeral Atlas cluster (temporary, expires in 7 days)**
+
+## Use it now
+
+### Use the hosted playground
 
 Nothing to install. The web app, the REST API and the MCP server are the same service.
 
@@ -18,9 +30,9 @@ Nothing to install. The web app, the REST API and the MCP server are the same se
    ```
 3. Machine-readable docs: <{origin}/llms.txt>
 
-## Use it from an agent (MCP)
+### Use it from an agent (MCP)
 
-A stateless Streamable HTTP MCP server. Tools: run_query, validate_query, explain_query, share_query, get_shared, list_examples, get_limits, get_setup_guide.
+A stateless Streamable HTTP MCP server. Tools: run_query, validate_query, explain_query, share_query, get_shared, export_playground, list_examples, get_setup_guide, get_limits.
 
 1. Claude Code
 
@@ -35,7 +47,9 @@ A stateless Streamable HTTP MCP server. Tools: run_query, validate_query, explai
 3. Discovery card: <{origin}/.well-known/mcp.json>
 4. OpenAPI 3.1: <{origin}/api/v1/openapi.json>
 
-## Run locally with the Atlas CLI (no account, includes Atlas Search)
+## Run it on your machine
+
+### Run locally with the Atlas CLI (no account, includes Atlas Search)
 
 A local MongoDB in Docker with Atlas Search and Vector Search, then the API and web app on your machine.
 
@@ -61,9 +75,32 @@ A local MongoDB in Docker with Atlas Search and Vector Search, then the API and 
    atlas local delete playground --force
    ```
 
-## Free-forever Atlas cluster (M0)
+### Docker Compose
 
-512 MB, no credit card, one per project. Good for real, persistent use.
+The API, the web app and an Atlas Local MongoDB (search works) in one command.
+
+1. Start it
+
+   ```bash
+   docker compose up --build
+   ```
+2. Open it: <http://localhost:8080>
+
+### Desktop app (Tauri)
+
+Runs queries in-process against a local MongoDB. No network service.
+
+1. Run it
+
+   ```bash
+   cd web && npm install && npm run tauri dev
+   ```
+
+## Use a real Atlas cluster
+
+### Free-forever Atlas cluster (M0)
+
+A free cluster in your own Atlas account: 512 MB, no credit card, one per project. It stays until you delete it, so your data persists.
 
 1. Register for Atlas: <https://www.mongodb.com/cloud/atlas/register?utm_campaign=devrel&utm_source=third-party-content&utm_medium=cta&utm_content=mongodb-playground&utm_term=diana.esteves>
 2. Or from the terminal: sign in and create a free cluster
@@ -91,51 +128,37 @@ A local MongoDB in Docker with Atlas Search and Vector Search, then the API and 
    ```bash
    MONGODB_URI='<connection string>' cargo run -p playground-api
    ```
-
-## Ephemeral Atlas cluster (create, use, delete)
-
-A throwaway cloud cluster for a demo or a workshop. Create it, use it, delete it so nothing keeps running.
-
-1. Create a project and a free cluster
+7. When you are done, delete the cluster if you do not want to keep it
 
    ```bash
-   atlas projects create playground-tmp && atlas clusters create playground --tier M0 --provider GCP --region CENTRAL_US
+   atlas clusters delete <cluster-name> --force
    ```
-2. Create a user and allow your IP
+
+### Ephemeral Atlas cluster (temporary, expires in 7 days)
+
+A temporary free Atlas cluster created from the terminal. Atlas pauses it 2 days after creation and deletes it 7 days after creation unless you claim it into an Atlas account, which turns it into a normal free cluster with no expiry. Until it is claimed you can read and write data, but you cannot scale it, add database users or change network access. It runs on AWS us-east-1 and accepts connections from any IP address, so keep sensitive data out. This is a preview Atlas API: it can change, and creating one means you accept the MongoDB Cloud Terms of Service.
+
+1. Check that your Atlas CLI has the command (upgrade the CLI if it is missing)
 
    ```bash
-   atlas dbusers create readWriteAnyDatabase --username pg --password '<password>' && atlas accessLists create --currentIp
+   atlas api ephemeralClusters createEphemeralCluster --help
    ```
-3. Use it (connection string from the Atlas CLI)
+2. Create the cluster. The request body is described in the Atlas Admin API docs; the response has the connection and claim details
 
    ```bash
-   atlas clusters connectionStrings describe playground
+   atlas api ephemeralClusters createEphemeralCluster --file request.json
    ```
-4. Delete everything
+3. Request body reference (preview API): <https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/preview/operation/operation-createephemeralcluster?utm_campaign=devrel&utm_source=third-party-content&utm_medium=cta&utm_content=mongodb-playground&utm_term=diana.esteves>
+4. Point the API at it, using the connection string from the response
 
    ```bash
-   atlas clusters delete playground --force && atlas projects delete <project-id> --force
+   MONGODB_URI='<connection string from the response>' cargo run -p playground-api
    ```
-
-## Docker Compose
-
-The API, the web app and an Atlas Local MongoDB (search works) in one command.
-
-1. Start it
+5. Look it up again later
 
    ```bash
-   docker compose up --build
+   atlas api ephemeralClusters getEphemeralCluster --help
    ```
-2. Open it: <http://localhost:8080>
-
-## Desktop app (Tauri)
-
-Runs queries in-process against a local MongoDB. No network service.
-
-1. Run it
-
-   ```bash
-   cd web && npm install && npm run tauri dev
-   ```
+6. Keep it or let it go: claim it within 7 days using the claim details, or do nothing and Atlas deletes it. There is nothing to clean up
 
 _Atlas CLI flags change between releases: check `atlas <command> --help` before relying on these._

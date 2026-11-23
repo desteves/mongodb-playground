@@ -90,6 +90,18 @@ pub fn is_valid_id(id: &str) -> bool {
 pub struct Shares {
     client: Client,
     db: String,
+    /// Most shares kept in total; saving stops (503) when the collection is this full.
+    max_total: u64,
+    /// Most shares one client address may create per UTC day (counted in memory, so per server instance).
+    per_client_per_day: u32,
+    quota: std::sync::Mutex<std::collections::HashMap<String, (u64, u32)>>,
+}
+
+/// How much the shares collection holds.
+#[derive(Debug, Clone, Copy)]
+pub struct Usage {
+    pub count: u64,
+    pub bytes: u64,
 }
 
 #[derive(Debug)]
@@ -103,7 +115,105 @@ impl Shares {
         Self {
             client,
             db: db.into(),
+            max_total: 100_000,
+            per_client_per_day: 30,
+            quota: Default::default(),
         }
+    }
+
+    /// Cap the total number of shares and the number one client may create per day.
+    pub fn with_limits(mut self, max_total: u64, per_client_per_day: u32) -> Self {
+        self.max_total = max_total;
+        self.per_client_per_day = per_client_per_day;
+        self
+    }
+
+    pub fn max_total(&self) -> u64 {
+        self.max_total
+    }
+
+    /// Count against `client`'s daily allowance; `Err(seconds)` until the next UTC day when it is used up.
+    fn take_quota(&self, client: &str, now_secs: u64) -> std::result::Result<(), u64> {
+        let day = now_secs / 86_400;
+        let mut q = self.quota.lock().unwrap_or_else(|e| e.into_inner());
+        if q.len() > 50_000 {
+            q.retain(|_, (d, _)| *d == day);
+        }
+        let entry = q.entry(client.to_string()).or_insert((day, 0));
+        if entry.0 != day {
+            *entry = (day, 0);
+        }
+        if entry.1 >= self.per_client_per_day {
+            return Err((day + 1) * 86_400 - now_secs);
+        }
+        entry.1 += 1;
+        Ok(())
+    }
+
+    /// Number of documents and their size, from collection statistics (cheap).
+    pub async fn usage(&self) -> Result<Usage> {
+        let r = self
+            .client
+            .database(&self.db)
+            .run_command(doc! { "collStats": "shares" })
+            .await;
+        // A collection that does not exist yet is empty.
+        let Ok(r) = r else {
+            return Ok(Usage { count: 0, bytes: 0 });
+        };
+        let num = |k: &str| {
+            r.get(k)
+                .and_then(|v| match v {
+                    Bson::Int32(n) => Some(*n as u64),
+                    Bson::Int64(n) => Some(*n as u64),
+                    Bson::Double(n) => Some(*n as u64),
+                    _ => None,
+                })
+                .unwrap_or(0)
+        };
+        Ok(Usage {
+            count: num("count"),
+            bytes: num("size"),
+        })
+    }
+
+    /// Delete one share (a takedown). True when it existed.
+    pub async fn remove(&self, id: &str) -> Result<bool> {
+        if !is_valid_id(id) {
+            return Ok(false);
+        }
+        let r = self
+            .client
+            .database(&self.db)
+            .run_command(doc! {
+                "delete": "shares",
+                "deletes": [ { "q": { "_id": id }, "limit": 1 } ],
+            })
+            .await?;
+        Ok(r.get_i32("n").unwrap_or(0) > 0)
+    }
+
+    /// `save`, for a known client: enforces the per-client daily quota and the total cap first.
+    pub async fn save_for(
+        &self,
+        client: &str,
+        p: &SharedPlayground,
+        limits: &Limits,
+    ) -> Result<String> {
+        p.validate(limits)?;
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        if let Err(wait) = self.take_quota(client, now) {
+            return Err(PlaygroundError::RateLimited(wait));
+        }
+        if self.usage().await?.count >= self.max_total {
+            return Err(PlaygroundError::Full(
+                "share storage is full right now; no new share links can be created".into(),
+            ));
+        }
+        self.save(p, limits).await
     }
 
     /// TTL index so unviewed shares expire. Safe to call on every start.
@@ -253,6 +363,27 @@ mod tests {
             bad.validate(&Limits::default()),
             Err(PlaygroundError::Forbidden(_))
         ));
+    }
+
+    #[tokio::test]
+    async fn the_daily_quota_counts_per_client_and_resets_each_day() {
+        let client = Client::with_uri_str("mongodb://localhost:1/?serverSelectionTimeoutMS=100")
+            .await
+            .unwrap();
+        let s = Shares::new(client, "x").with_limits(10, 2);
+        let day = 20_000 * 86_400;
+        assert!(s.take_quota("a", day + 10).is_ok());
+        assert!(s.take_quota("a", day + 20).is_ok());
+        assert_eq!(s.take_quota("a", day + 86_000), Err(400));
+        assert!(
+            s.take_quota("b", day + 30).is_ok(),
+            "another client has its own allowance"
+        );
+        assert!(
+            s.take_quota("a", day + 86_400).is_ok(),
+            "a new day starts over"
+        );
+        assert_eq!(s.max_total(), 10);
     }
 
     #[test]

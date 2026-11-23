@@ -119,24 +119,118 @@ resource "cloudflare_ruleset" "rate_limit" {
   }
 }
 
-# Shared playgrounds never change (the id is a hash of the content), and the SPA's assets are
-# content-hashed: let the edge cache both, honouring the origin's Cache-Control.
+# Cache rules, ordered: when several rules match, a LATER rule wins for the same setting, so the bypass
+# comes first and the specific allow-lists after it.
+#
+# What is cached, and why (see "Caching" in the README):
+#   - hashed build output and static files: yes (names change on deploy, or the TTL is short);
+#   - Markdown twins (/about.md, ...): yes, one URL means one representation;
+#   - discovery documents and /api/v1/limits: yes, following the origin's short Cache-Control;
+#   - shared playgrounds: yes, but at most a day (they expire 90 days after their last origin view);
+#   - HTML pages: NEVER. The same URL answers HTML or Markdown depending on the Accept header, and a cache
+#     key that ignores Accept would hand the wrong one to the next visitor (header cache keys need Enterprise);
+#   - everything that does work (POSTs, /mcp, health, jobs): never.
+# Do not turn on "Cache Everything" for HTML.
 resource "cloudflare_ruleset" "cache" {
   zone_id     = var.zone_id
   name        = "Playground cache"
-  description = "Cache shares and static assets at the edge"
+  description = "Cache static files, Markdown twins, discovery documents and shares; never HTML or the API"
   kind        = "zone"
   phase       = "http_request_cache_settings"
 
   rules {
     action      = "set_cache_settings"
-    expression  = "(starts_with(http.request.uri.path, \"/api/v1/p/\") or starts_with(http.request.uri.path, \"/assets/\"))"
-    description = "Cache shares and assets"
+    expression  = "(starts_with(http.request.uri.path, \"/api/\") or starts_with(http.request.uri.path, \"/internal/\") or http.request.uri.path in {\"/mcp\" \"/readyz\" \"/healthz\"})"
+    description = "Never cache work, control and health endpoints"
+    enabled     = true
+    action_parameters {
+      cache = false
+    }
+  }
+
+  rules {
+    action      = "set_cache_settings"
+    expression  = "(http.request.method eq \"GET\" and http.request.uri.path in {\"/api/v1/openapi.json\" \"/api/v1/examples\" \"/api/v1/guide\" \"/api/v1/limits\" \"/openapi.json\" \"/llms.txt\" \"/.well-known/mcp.json\"})"
+    description = "Discovery documents: follow the origin (5 minutes; limits 1 minute)"
     enabled     = true
     action_parameters {
       cache = true
       edge_ttl {
         mode = "respect_origin"
+      }
+      browser_ttl {
+        mode = "respect_origin"
+      }
+    }
+  }
+
+  rules {
+    action      = "set_cache_settings"
+    expression  = "(http.request.method eq \"GET\" and starts_with(http.request.uri.path, \"/api/v1/p/\"))"
+    description = "Shared playgrounds: immutable per id, but never longer than a day at the edge"
+    enabled     = true
+    action_parameters {
+      cache = true
+      edge_ttl {
+        mode    = "override_origin"
+        default = 86400
+      }
+      browser_ttl {
+        mode = "respect_origin"
+      }
+    }
+  }
+
+  rules {
+    action      = "set_cache_settings"
+    expression  = "(ends_with(http.request.uri.path, \".md\") and not starts_with(http.request.uri.path, \"/api/\"))"
+    description = "Markdown twins of the pages: 1 hour at the edge, 5 minutes in browsers"
+    enabled     = true
+    action_parameters {
+      cache = true
+      edge_ttl {
+        mode    = "override_origin"
+        default = 3600
+      }
+      browser_ttl {
+        mode    = "override_origin"
+        default = 300
+      }
+    }
+  }
+
+  rules {
+    action      = "set_cache_settings"
+    expression  = "(http.request.uri.path in {\"/favicon.svg\" \"/robots.txt\" \"/sitemap.xml\"})"
+    description = "Static root files: 1 hour"
+    enabled     = true
+    action_parameters {
+      cache = true
+      edge_ttl {
+        mode    = "override_origin"
+        default = 3600
+      }
+      browser_ttl {
+        mode    = "override_origin"
+        default = 3600
+      }
+    }
+  }
+
+  rules {
+    action      = "set_cache_settings"
+    expression  = "starts_with(http.request.uri.path, \"/assets/\")"
+    description = "Hashed build output: a year, a deploy changes the file names"
+    enabled     = true
+    action_parameters {
+      cache = true
+      edge_ttl {
+        mode    = "override_origin"
+        default = 31536000
+      }
+      browser_ttl {
+        mode    = "override_origin"
+        default = 31536000
       }
     }
   }

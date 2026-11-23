@@ -36,7 +36,13 @@ Structured fallback (one operation): mode (find|aggregate|count|distinct|insert|
 $where, $function, $out, $merge and cross-database references are rejected.";
 
 /// Handle one JSON-RPC message. Returns `None` for notifications (no reply).
+#[cfg(test)]
 pub async fn handle(state: &AppState, msg: Value) -> Option<Value> {
+    handle_for(state, msg, "local").await
+}
+
+/// Like `handle`, for a known client (its address is what the per-client share quota counts).
+pub async fn handle_for(state: &AppState, msg: Value, client: &str) -> Option<Value> {
     let id = msg.get("id").cloned()?;
     let method = msg.get("method").and_then(Value::as_str).unwrap_or("");
     let params = msg.get("params").cloned().unwrap_or(Value::Null);
@@ -45,7 +51,7 @@ pub async fn handle(state: &AppState, msg: Value) -> Option<Value> {
         "initialize" => Ok(initialize(&params)),
         "ping" => Ok(json!({})),
         "tools/list" => Ok(json!({ "tools": tools() })),
-        "tools/call" => Ok(call_tool(state, &params).await),
+        "tools/call" => Ok(call_tool(state, &params, client).await),
         other => Err(json!({ "code": -32601, "message": format!("method not found: {other}") })),
     };
     Some(match result {
@@ -146,7 +152,7 @@ fn tools() -> Value {
     ])
 }
 
-async fn call_tool(state: &AppState, params: &Value) -> Value {
+async fn call_tool(state: &AppState, params: &Value, client: &str) -> Value {
     let name = params.get("name").and_then(Value::as_str).unwrap_or("");
     let args = params
         .get("arguments")
@@ -188,12 +194,16 @@ async fn call_tool(state: &AppState, params: &Value) -> Value {
                     return tool_error(&PlaygroundError::Invalid(format!("bad arguments: {e}")))
                 }
             };
-            match state.shares.save(&playground, state.runner.limits()).await {
+            match state
+                .shares
+                .save_for(client, &playground, state.runner.limits())
+                .await
+            {
                 Ok(id) => ok(json!({ "id": id, "url": format!("/p/{id}") })),
                 Err(e) => tool_error(&e),
             }
         }
-        "list_examples" => ok(json!({ "examples": state.visible_examples() })),
+        "list_examples" => ok(json!({ "examples": state.visible_examples().await })),
         "validate_query" | "run_query" | "explain_query" => {
             let body: RunBody = match serde_json::from_value(args) {
                 Ok(b) => b,

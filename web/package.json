@@ -1,12 +1,12 @@
 {
   "name": "playground-web",
   "private": true,
-  "description": "Svelte 5 + CodeMirror 6 UI for the MongoDB Playground, an online MongoDB shell for humans and agents",
+  "description": "Svelte 5 + CodeMirror 6 UI for the MongoDB Playground, an online MongoDB playground for humans and agents",
   "license": "Apache-2.0",
   "homepage": "https://mongoplayground.com",
   "repository": { "type": "git", "url": "git+https://github.com/desteves/mongodb-playground.git" },
   "keywords": ["mongodb", "mongosh", "playground", "aggregation", "atlas-search", "vector-search", "mcp"],
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",

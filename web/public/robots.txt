@@ -1,4 +1,21 @@
+# Everyone, including search and AI crawlers, may read the pages and the machine-readable docs.
+# The API and the scheduled jobs are not for crawling (agents should use /llms.txt and /openapi.json).
 User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /internal/
+Allow: /llms.txt
+
+User-agent: GPTBot
+User-agent: OAI-SearchBot
+User-agent: ChatGPT-User
+User-agent: ClaudeBot
+User-agent: Claude-User
+User-agent: Claude-SearchBot
+User-agent: PerplexityBot
+User-agent: Perplexity-User
+User-agent: Google-Extended
+User-agent: Applebot-Extended
 Allow: /
 Disallow: /api/
 Disallow: /internal/

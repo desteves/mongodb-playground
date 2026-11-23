@@ -7,7 +7,7 @@
 <div class="page">
   <h1>About MongoDB Playground</h1>
   <p class="lead">
-    A free online MongoDB shell: paste documents, run mongosh-style commands, see query plans, try Atlas Search and Vector Search,
+    A free online MongoDB playground: paste documents, run mongosh-style commands, see query plans, try Atlas Search and Vector Search,
     then share or export. Built for people and for AI agents.
   </p>
 

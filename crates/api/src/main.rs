@@ -1,5 +1,7 @@
 mod guard;
 mod mcp;
+mod pages;
+mod prerender;
 
 use std::{
     net::SocketAddr,
@@ -24,7 +26,6 @@ use tower_http::{
     cors::CorsLayer,
     decompression::RequestDecompressionLayer,
     services::{ServeDir, ServeFile},
-    set_header::SetResponseHeaderLayer,
     trace::TraceLayer,
 };
 use tracing_subscriber::EnvFilter;
@@ -36,21 +37,33 @@ pub(crate) struct Features {
 }
 
 impl AppState {
-    /// Reject a request that uses a feature this deployment has turned off.
-    /// Templates and examples this deployment can actually run (sample-data ones need the feature flag).
-    pub(crate) fn visible_examples(&self) -> Value {
-        match &self.examples {
-            Value::Array(items) => Value::Array(
-                items
-                    .iter()
-                    .filter(|e| self.features.sample_data || e.get("datasource").is_none())
-                    .cloned()
-                    .collect(),
-            ),
-            other => other.clone(),
-        }
+    /// Templates and examples this deployment can actually run: the ones that read a sample database need
+    /// the feature flag and that database to exist on the cluster (so an example is never offered that would fail).
+    pub(crate) async fn visible_examples(&self) -> Value {
+        let Value::Array(items) = &self.examples else {
+            return self.examples.clone();
+        };
+        let have: Vec<String> = if self.features.sample_data {
+            self.runner.sample_databases().await.unwrap_or_default()
+        } else {
+            vec![]
+        };
+        Value::Array(
+            items
+                .iter()
+                .filter(|e| match e.get("datasource") {
+                    None => true,
+                    Some(d) => d
+                        .get("sample")
+                        .and_then(Value::as_str)
+                        .is_some_and(|db| have.iter().any(|h| h == db)),
+                })
+                .cloned()
+                .collect(),
+        )
     }
 
+    /// Reject a request that uses a feature this deployment has turned off.
     pub(crate) fn check_features(&self, body: &RunBody) -> Result<(), PlaygroundError> {
         let sample = match body {
             RunBody::Script(r) => r.datasource.is_some(),
@@ -99,6 +112,24 @@ async fn main() {
         builder.init();
     }
 
+    // `api seed-examples`: build the prebuilt example datasets (needs a user that can write and create
+    // search indexes: MONGODB_ADMIN_URI, or MONGODB_URI when running against a local deployment).
+    if std::env::args().nth(1).as_deref() == Some("seed-examples") {
+        let uri = env("MONGODB_ADMIN_URI")
+            .or_else(|| env("MONGODB_URI"))
+            .expect("set MONGODB_ADMIN_URI (or MONGODB_URI) to a user that can write");
+        match playground_core::seed::seed_examples(&uri).await {
+            Ok(r) => {
+                println!("seeded {}: {:?}", r.database, r.collections);
+                return;
+            }
+            Err(e) => {
+                eprintln!("seeding failed: {e}");
+                std::process::exit(1);
+            }
+        }
+    }
+
     let uri = env("MONGODB_URI").unwrap_or_else(|| {
         eprintln!("MONGODB_URI is not set; defaulting to mongodb://localhost:27017");
         "mongodb://localhost:27017".to_string()
@@ -122,6 +153,14 @@ async fn main() {
     let shares = Shares::new(
         shares_client,
         env("SHARES_DB").unwrap_or_else(|| "playground_shares".into()),
+    )
+    .with_limits(
+        env("SHARES_MAX_TOTAL")
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(100_000),
+        env("SHARES_PER_CLIENT_PER_DAY")
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(30),
     );
 
     let stats_client = match env("STATS_MONGODB_URI") {
@@ -210,6 +249,11 @@ async fn main() {
         // Scheduled jobs (Cloud Scheduler). Not part of the public API.
         .route("/internal/jobs/sweep", post(job_sweep))
         .route("/internal/jobs/rollup", post(job_rollup))
+        // Takedown: remove one shared playground (token-gated like the jobs).
+        .route(
+            "/internal/shares/{id}",
+            axum::routing::delete(takedown_share),
+        )
         // Conventional root-level discovery paths for agents and crawlers.
         .route("/openapi.json", get(openapi))
         .route("/llms.txt", get(llms_txt))
@@ -225,17 +269,25 @@ async fn main() {
             ServeDir::new(&web_dir).fallback(ServeFile::new(format!("{web_dir}/index.html")));
         app.fallback_service(
             tower::ServiceBuilder::new()
-                .layer(SetResponseHeaderLayer::if_not_present(
-                    header::CACHE_CONTROL,
-                    axum::http::HeaderValue::from_static("public, max-age=300"),
-                ))
+                .layer(axum::middleware::from_fn(static_cache))
                 .service(files),
         )
     } else {
         app
     };
 
+    // Markdown for agents: every page has a Markdown twin (Accept: text/markdown, or <page>.md).
+    let page_ctx = pages::PageCtx::new(
+        &state.public_url,
+        state.runner.limits(),
+        &std::env::var("CLUSTER_TIER").unwrap_or_else(|_| "M10".into()),
+        env("CONTENT_SIGNAL"),
+    );
     let app = app
+        .layer(axum::middleware::from_fn_with_state(
+            page_ctx,
+            pages::negotiate,
+        ))
         // Charged per client; reads and discovery are free (see guard::cost).
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
@@ -250,6 +302,7 @@ async fn main() {
         // The SPA is served from the same origin in production (behind the load balancer);
         // permissive CORS matters for local dev and for browser-based agents.
         .layer(CorsLayer::permissive())
+        .layer(axum::middleware::from_fn(security_headers))
         .layer(TraceLayer::new_for_http())
         .with_state(state.clone());
 
@@ -415,7 +468,9 @@ async fn share(
 ) -> Result<Json<Value>, ApiError> {
     let (c, start) = (ctx(&s, &headers, false), Instant::now());
     let result = if p.datasource.is_null() || s.features.sample_data {
-        s.shares.save(&p, s.runner.limits()).await
+        s.shares
+            .save_for(&guard::client_key(&headers), &p, s.runner.limits())
+            .await
     } else {
         Err(PlaygroundError::Invalid(
             "sample data is turned off on this deployment".into(),
@@ -438,9 +493,10 @@ async fn load_share(
     let mut body = serde_json::to_value(&loaded.playground).unwrap_or(Value::Null);
     body["id"] = json!(id);
     body["createdAt"] = json!(loaded.created_at_ms);
-    // The id is a hash of the content, so a hit never changes.
+    // A share's content never changes for its id (a random UUID), but shares expire 90 days after their last
+    // view at the origin, so browsers and the edge keep one for at most a day (see the Cloudflare cache rules).
     Ok((
-        [(header::CACHE_CONTROL, "public, max-age=31536000, immutable")],
+        [(header::CACHE_CONTROL, "public, max-age=86400, immutable")],
         Json(body),
     )
         .into_response())
@@ -525,33 +581,111 @@ async fn sample_preview(
     ))
 }
 
-async fn examples_handler(State(s): State<Shared>) -> Json<Value> {
-    Json(s.visible_examples())
+/// How long browsers and the edge (Cloudflare) may keep an answer that only changes on a deploy.
+const CACHE_DISCOVERY: &str = "public, max-age=300";
+/// Live capabilities (search support, limits): a short window keeps the database out of the hot path.
+const CACHE_LIVE: &str = "public, max-age=60";
+
+/// A response with a `Cache-Control` header (the Cloudflare cache rules respect it; see infra/modules/cloudflare).
+fn cached(cache_control: &'static str, body: impl IntoResponse) -> Response {
+    let mut res = body.into_response();
+    res.headers_mut().insert(
+        header::CACHE_CONTROL,
+        axum::http::HeaderValue::from_static(cache_control),
+    );
+    res
+}
+
+/// `Cache-Control` for the web app's files, when a handler has not set one: hashed assets never change, the
+/// HTML shell (index.html and every SPA route) must be revalidated so a deploy shows up at once, and other
+/// static files can be kept for an hour.
+fn static_cache_control(path: &str) -> &'static str {
+    if path.starts_with("/assets/") {
+        "public, max-age=31536000, immutable"
+    } else if path.ends_with(".html") || !path.rsplit('/').next().unwrap_or("").contains('.') {
+        "no-cache"
+    } else {
+        "public, max-age=3600"
+    }
+}
+
+/// Headers every response carries. The Content-Security-Policy applies to HTML only; Turnstile is the
+/// one third party (script and frame from challenges.cloudflare.com). HSTS is set by Cloudflare.
+async fn security_headers(req: axum::extract::Request, next: axum::middleware::Next) -> Response {
+    use axum::http::HeaderValue as V;
+    let mut res = next.run(req).await;
+    let is_html = res
+        .headers()
+        .get(header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|v| v.starts_with("text/html"));
+    let h = res.headers_mut();
+    h.insert(header::X_CONTENT_TYPE_OPTIONS, V::from_static("nosniff"));
+    h.insert(
+        header::REFERRER_POLICY,
+        V::from_static("strict-origin-when-cross-origin"),
+    );
+    h.insert(
+        "permissions-policy",
+        V::from_static("camera=(), microphone=(), geolocation=(), payment=(), usb=()"),
+    );
+    if is_html {
+        h.insert(header::X_FRAME_OPTIONS, V::from_static("DENY"));
+        h.insert(header::CONTENT_SECURITY_POLICY, V::from_static(CSP));
+    }
+    res
+}
+
+const CSP: &str = "default-src 'self'; script-src 'self' https://challenges.cloudflare.com; \
+style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; \
+frame-src https://challenges.cloudflare.com; frame-ancestors 'none'; base-uri 'self'; \
+form-action 'self'; object-src 'none'";
+
+async fn static_cache(req: axum::extract::Request, next: axum::middleware::Next) -> Response {
+    let path = req.uri().path().to_string();
+    let mut res = next.run(req).await;
+    if res.status().is_success() && !res.headers().contains_key(header::CACHE_CONTROL) {
+        res.headers_mut().insert(
+            header::CACHE_CONTROL,
+            axum::http::HeaderValue::from_static(static_cache_control(&path)),
+        );
+    }
+    res
+}
+
+async fn examples_handler(State(s): State<Shared>) -> Response {
+    cached(CACHE_DISCOVERY, Json(s.visible_examples().await))
 }
 
 /// How to run it yourself, get a free or ephemeral Atlas cluster, or connect an agent.
-async fn guide_handler(State(s): State<Shared>) -> Json<Value> {
-    Json(playground_core::guide_for(&s.public_url))
+async fn guide_handler(State(s): State<Shared>) -> Response {
+    cached(
+        CACHE_DISCOVERY,
+        Json(playground_core::guide_for(&s.public_url)),
+    )
 }
 
 /// A discovery card for MCP clients and crawlers.
-async fn mcp_card(State(s): State<Shared>) -> Json<Value> {
+async fn mcp_card(State(s): State<Shared>) -> Response {
     let origin = s.public_url.trim_end_matches('/');
-    Json(json!({
-        "name": "MongoDB Playground",
-        "description": "Run mongosh-style scripts (several statements, in order) against documents you supply, in a throwaway database, with query plans, Atlas Search and Vector Search.",
-        "transport": "streamable-http",
-        "url": format!("{origin}/mcp"),
-        "authentication": "none",
-        "tools": mcp::TOOL_NAMES,
-        "docs": format!("{origin}/llms.txt"),
-        "openapi": format!("{origin}/api/v1/openapi.json"),
-        "setupGuide": format!("{origin}/api/v1/guide"),
-    }))
+    cached(
+        CACHE_DISCOVERY,
+        Json(json!({
+            "name": "MongoDB Playground",
+            "description": "Run mongosh-style scripts (several statements, in order) against documents you supply, in a throwaway database, with query plans, Atlas Search and Vector Search.",
+            "transport": "streamable-http",
+            "url": format!("{origin}/mcp"),
+            "authentication": "none",
+            "tools": mcp::TOOL_NAMES,
+            "docs": format!("{origin}/llms.txt"),
+            "openapi": format!("{origin}/api/v1/openapi.json"),
+            "setupGuide": format!("{origin}/api/v1/guide"),
+        })),
+    )
 }
 
-async fn limits_handler(State(s): State<Shared>) -> Json<Value> {
-    Json(limits_json(&s).await)
+async fn limits_handler(State(s): State<Shared>) -> Response {
+    cached(CACHE_LIVE, Json(limits_json(&s).await))
 }
 
 pub(crate) async fn limits_json(state: &AppState) -> Value {
@@ -596,19 +730,23 @@ pub(crate) async fn limits_json(state: &AppState) -> Value {
 }
 
 async fn openapi() -> Response {
-    (
-        [(header::CONTENT_TYPE, "application/json")],
-        include_str!("openapi.json"),
+    cached(
+        CACHE_DISCOVERY,
+        (
+            [(header::CONTENT_TYPE, "application/json")],
+            include_str!("openapi.json"),
+        ),
     )
-        .into_response()
 }
 
 async fn llms_txt() -> Response {
-    (
-        [(header::CONTENT_TYPE, "text/plain; charset=utf-8")],
-        include_str!("llms.txt"),
+    cached(
+        CACHE_DISCOVERY,
+        (
+            [(header::CONTENT_TYPE, "text/plain; charset=utf-8")],
+            include_str!("llms.txt"),
+        ),
     )
-        .into_response()
 }
 
 async fn mcp_handler(
@@ -617,7 +755,7 @@ async fn mcp_handler(
     Json(msg): Json<Value>,
 ) -> Response {
     let (c, start) = (ctx(&s, &headers, true), Instant::now());
-    match mcp::handle(&s, msg).await {
+    match mcp::handle_for(&s, msg, &guard::client_key(&headers)).await {
         Some(reply) => {
             let mut ev = c.event("mcp_call");
             ev.dur_ms = Some(start.elapsed().as_millis() as i64);
@@ -656,6 +794,18 @@ async fn job_sweep(State(s): State<Shared>, headers: HeaderMap) -> Result<Json<V
     Ok(Json(json!({ "dropped": dropped })))
 }
 
+/// Remove a shared playground (abuse, a leaked secret). `DELETE /internal/shares/<id>` with the internal token.
+async fn takedown_share(
+    State(s): State<Shared>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<Json<Value>, ApiError> {
+    authorised(&s, &headers)?;
+    let removed = s.shares.remove(&id).await?;
+    tracing::warn!(%id, removed, "share taken down");
+    Ok(Json(json!({ "id": id, "removed": removed })))
+}
+
 /// Fold the last 48 hours of events into `daily_rollups`.
 async fn job_rollup(State(s): State<Shared>, headers: HeaderMap) -> Result<Json<Value>, ApiError> {
     authorised(&s, &headers)?;
@@ -663,7 +813,22 @@ async fn job_rollup(State(s): State<Shared>, headers: HeaderMap) -> Result<Json<
     stats::rollup(&s.stats_client, &s.stats_db, 48)
         .await
         .map_err(PlaygroundError::from)?;
-    Ok(Json(json!({ "ok": true })))
+    // Storage watch: a warning in the log (alert on it) when shares pass 80 % of the cap.
+    let usage = s.shares.usage().await.ok();
+    if let Some(u) = &usage {
+        if u.count * 5 >= s.shares.max_total() * 4 {
+            tracing::warn!(
+                count = u.count,
+                max = s.shares.max_total(),
+                bytes = u.bytes,
+                "share storage is above 80 % of its cap"
+            );
+        }
+    }
+    Ok(Json(json!({
+        "ok": true,
+        "shares": usage.map(|u| json!({ "count": u.count, "bytes": u.bytes, "max": s.shares.max_total() })),
+    })))
 }
 
 // ----- errors -----------------------------------------------------------------------------------
@@ -710,7 +875,9 @@ impl IntoResponse for ApiError {
             PlaygroundError::Timeout(_) => StatusCode::REQUEST_TIMEOUT,
             PlaygroundError::NotFound(_) => StatusCode::NOT_FOUND,
             PlaygroundError::RateLimited(_) => StatusCode::TOO_MANY_REQUESTS,
-            PlaygroundError::Unavailable | PlaygroundError::Busy => StatusCode::SERVICE_UNAVAILABLE,
+            PlaygroundError::Unavailable | PlaygroundError::Busy | PlaygroundError::Full(_) => {
+                StatusCode::SERVICE_UNAVAILABLE
+            }
         };
         (status, Json(json!({ "error": error_json(&self.0) }))).into_response()
     }
@@ -742,5 +909,40 @@ async fn shutdown_signal() {
     tokio::select! {
         _ = ctrl_c => {},
         _ = terminate => {},
+    }
+}
+
+#[cfg(test)]
+mod cache_tests {
+    use super::{static_cache_control, CSP};
+
+    #[test]
+    fn the_csp_allows_only_self_and_turnstile() {
+        assert!(CSP.contains("script-src 'self' https://challenges.cloudflare.com"));
+        assert!(CSP.contains("frame-ancestors 'none'") && CSP.contains("object-src 'none'"));
+        assert!(!CSP.contains("unsafe-eval") && !CSP.contains("script-src 'unsafe-inline'"));
+    }
+
+    #[test]
+    fn static_files_get_the_right_cache_control() {
+        // hashed build output never changes
+        assert_eq!(
+            static_cache_control("/assets/index-BKTxK73C.js"),
+            "public, max-age=31536000, immutable"
+        );
+        // the HTML shell, for every SPA route, must be revalidated so a deploy shows up
+        for p in [
+            "/",
+            "/index.html",
+            "/about",
+            "/docs/api",
+            "/p/e80745bb-7601-4b5f-b5c1-275dc4de07be",
+        ] {
+            assert_eq!(static_cache_control(p), "no-cache", "{p}");
+        }
+        // other static files: an hour
+        for p in ["/favicon.svg", "/robots.txt", "/sitemap.xml"] {
+            assert_eq!(static_cache_control(p), "public, max-age=3600", "{p}");
+        }
     }
 }

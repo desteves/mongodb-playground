@@ -66,6 +66,6 @@
     <li>Scripts are mongosh-style: several statements run in order against one throwaway database; the result is a transcript.</li>
     <li>If a statement fails, <code>isError</code> is true and the transcript up to that point is still returned, with a <code>hint</code>.</li>
     <li>Limits and capabilities (Atlas Search, rate limits) come from <code>get_limits</code>; setup help from <code>get_setup_guide</code>.</li>
-    <li>The same service is available as a <a href="/docs/api">REST API</a>.</li>
+    <li>The same service is available as a <a href="/docs/api">REST API</a>. To see what a tool call does, open an <a href="/?example=crud-session">example in the web app</a> or follow the <a href="/docs/quickstart">Quickstart</a>.</li>
   </ul>
 </div>

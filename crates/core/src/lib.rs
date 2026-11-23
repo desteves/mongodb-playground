@@ -10,6 +10,7 @@ mod limits;
 mod relaxed;
 mod request;
 mod runner;
+pub mod seed;
 mod share;
 mod shell;
 mod shellvalue;
@@ -28,7 +29,7 @@ pub use request::{
 pub use runner::{
     make_client, ErrorBody, Reply, RunOutput, Runner, ScriptOutput, StatementOutput, WriteStats,
 };
-pub use share::{is_valid_id, Loaded, SharedPlayground, Shares, SHARE_TTL_SECS};
+pub use share::{is_valid_id, Loaded, SharedPlayground, Shares, Usage, SHARE_TTL_SECS};
 pub use shell::{prepare_script, Op, PreparedScript, Statement, MAX_STATEMENTS};
 pub use stats::Stats;
 pub use validate::{prepare, prepare_ok_summary, Prepared, Query};
@@ -87,6 +88,23 @@ pub fn with_utm(url: &str) -> String {
     out
 }
 
+/// Adds the UTM parameters to every link to mongodb.com in a piece of text (other links are left alone).
+pub fn tag_mongodb_links(text: &str) -> String {
+    let mut out = String::with_capacity(text.len() + 64);
+    let mut rest = text;
+    while let Some(i) = rest.find("https://") {
+        out.push_str(&rest[..i]);
+        let tail = &rest[i..];
+        let end = tail
+            .find(|c: char| c.is_whitespace() || matches!(c, ')' | '>' | '"' | '`' | '\'' | ']'))
+            .unwrap_or(tail.len());
+        out.push_str(&with_utm(&tail[..end]));
+        rest = &tail[end..];
+    }
+    out.push_str(rest);
+    out
+}
+
 /// How to run the playground yourself, get a free or ephemeral Atlas cluster, or connect an agent.
 /// Text contains `{origin}` (the public URL of this server) and `{atlasRegister}` (the Atlas
 /// sign-up link with UTM parameters); the API fills both in. Served at `GET /api/v1/guide`.
@@ -112,7 +130,8 @@ pub fn guide_for(origin: &str) -> serde_json::Value {
         .to_string()
         .replace("{origin}", origin.trim_end_matches('/'))
         .replace("{atlasRegister}", &atlas_register_url());
-    serde_json::from_str(&text).expect("the filled-in guide is valid JSON")
+    // Every link back to mongodb.com carries the UTM parameters.
+    serde_json::from_str(&tag_mongodb_links(&text)).expect("the filled-in guide is valid JSON")
 }
 
 /// The Atlas registration link, with the UTM parameters.
@@ -143,15 +162,29 @@ mod guide_tests {
                 "hosted",
                 "mcp",
                 "atlas-local",
-                "atlas-free",
-                "atlas-ephemeral",
                 "docker",
-                "desktop"
+                "desktop",
+                "atlas-free",
+                "atlas-ephemeral"
             ]
         );
         for o in g["options"].as_array().unwrap() {
             assert!(!o["steps"].as_array().unwrap().is_empty(), "{o}");
+            assert!(o["group"].as_str().is_some_and(|s| !s.is_empty()), "{o}");
         }
+        // the chooser points at real options
+        for c in g["choose"].as_array().unwrap() {
+            assert!(ids.contains(&c["use"].as_str().unwrap()), "{c}");
+        }
+        // an ephemeral Atlas cluster is temporary: the guide must not describe it as create-use-delete
+        let eph = g["options"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|o| o["id"] == "atlas-ephemeral")
+            .unwrap()
+            .to_string();
+        assert!(eph.contains("7 days") && eph.contains("ephemeralClusters createEphemeralCluster"));
         assert!(g.to_string().contains("{origin}"));
     }
 

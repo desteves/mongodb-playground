@@ -45,3 +45,5 @@ infra/.terraform.lock.hcl.bak
 .vscode/
 *.log
 .DS_Store
+__pycache__/
+*.pyc

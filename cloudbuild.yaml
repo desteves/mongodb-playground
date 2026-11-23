@@ -27,8 +27,23 @@ steps:
       - |
         set -euo pipefail
         npm ci --no-audit --no-fund
+        # Known vulnerabilities in dependencies: reported in the build log, not blocking yet.
+        npm audit --audit-level=high || echo "note: npm audit reported high or critical advisories"
         npm run check
         npm run build
+
+  # Known vulnerabilities in the Rust dependencies. Runs beside the other steps (it compiles the tool, which is
+  # slow) and only reports for now: read it in the build log.
+  - id: cargo-audit
+    name: 'rust:1-slim-bookworm'
+    entrypoint: bash
+    waitFor: ['-']
+    args:
+      - -c
+      - |
+        cargo install cargo-audit --locked >/dev/null 2>&1 || { echo "note: could not install cargo-audit"; exit 0; }
+        cargo audit || echo "note: cargo audit reported advisories"
+    env: ['CARGO_HOME=/workspace/.cargo-audit-home']
 
   # 3. Build the image, reusing layers from the previous build.
   - id: pull-cache

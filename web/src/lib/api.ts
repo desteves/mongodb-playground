@@ -177,7 +177,8 @@ export interface Guide {
   summary: string;
   atlasRegister: { url: string; utm: Record<string, string> };
   note?: string;
-  options: { id: string; title: string; summary?: string; steps: GuideStep[] }[];
+  options: { id: string; title: string; group?: string; summary?: string; steps: GuideStep[] }[];
+  choose?: { want: string; use: string }[];
 }
 
 export async function guide(): Promise<Guide | null> {

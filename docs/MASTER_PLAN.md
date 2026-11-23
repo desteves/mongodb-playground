@@ -1,6 +1,6 @@
 # MongoDB Playground: design and architecture
 
-An online MongoDB shell for builders, human and agent alike. You supply documents, run mongosh-style
+An online MongoDB playground for builders, human and agent alike. You supply documents, run mongosh-style
 statements, read the query plan, and share the result with a link. This document describes how it is built
 and why. For day-to-day use see the [README](../README.md); for agents see [AGENTS.md](../AGENTS.md).
 
@@ -212,7 +212,7 @@ All paths use the Atlas CLI and are described in [run-it-yourself.md](run-it-you
 
 1. **Local, no account:** an Atlas CLI local deployment (includes Atlas Search), then `cargo run -p playground-api`.
 2. **Free-forever Atlas M0:** sign up, create the cluster, a database user and an access-list entry.
-3. **Ephemeral cluster:** create, use, delete; a local deployment is the zero-cost version.
+3. **Ephemeral cluster:** a temporary free Atlas cluster created with the Atlas CLI's `atlas api ephemeralClusters createEphemeralCluster` (a preview API). Atlas pauses it after 2 days and deletes it after 7 unless it is claimed into an account, so there is nothing to clean up; a local deployment is the zero-cost option.
 4. **Docker Compose:** a local stack with the Atlas Local image so search works.
 5. **Desktop app:** the Tauri app against a local MongoDB.
 

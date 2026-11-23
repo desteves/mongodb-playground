@@ -15,7 +15,7 @@
   },
   {
     "id": "crud-session",
-    "title": "A CRUD session: insert, update, find, delete, count — several statements, run in order",
+    "title": "A CRUD session: insert, update, find, delete, count \u2014 several statements, run in order",
     "kind": "example",
     "config": "[\n  { name: \"Ada\",   age: 36, city: \"London\" },\n  { name: \"Linus\", age: 55, city: \"Helsinki\" },\n  { name: \"Grace\", age: 85, city: \"New York\" },\n  { name: \"Tim\",   age: 30, city: \"London\" }\n]",
     "script": "db.collection.insertMany([\n  { name: \"Barbara\", age: 40, city: \"Boston\" },\n  { name: \"Alan\", age: 41, city: \"London\" }\n])\ndb.collection.updateMany({ city: \"London\" }, { $set: { country: \"UK\" } })\ndb.collection.find({ country: \"UK\" }, { _id: 0, name: 1, age: 1 }).sort({ age: -1 })\ndb.collection.deleteOne({ name: \"Tim\" })\ndb.collection.countDocuments({})"
@@ -111,6 +111,24 @@
     "script": "db.movies.find(\n  { year: 1999, \"imdb.rating\": { $gte: 8 } },\n  { _id: 0, title: 1, year: 1, \"imdb.rating\": 1 }\n).sort({ \"imdb.rating\": -1 }).limit(10)\ndb.movies.countDocuments({ year: 1999 })",
     "datasource": {
       "sample": "sample_mflix"
+    }
+  },
+  {
+    "id": "prebuilt-atlas-search",
+    "title": "Atlas Search on a prebuilt, already indexed dataset (instant, read-only)",
+    "kind": "example",
+    "script": "db.movies.aggregate([\n  { $search: { text: { query: \"alien\", path: [\"title\", \"plot\"] } } },\n  { $project: { _id: 0, title: 1, year: 1, score: { $meta: \"searchScore\" } } },\n  { $limit: 5 }\n])",
+    "datasource": {
+      "sample": "sample_playground"
+    }
+  },
+  {
+    "id": "prebuilt-vector-search",
+    "title": "Vector Search on a prebuilt, already indexed dataset (instant, read-only)",
+    "kind": "example",
+    "script": "db.items.aggregate([\n  { $vectorSearch: { index: \"vector_index\", path: \"embedding\", queryVector: [0.85, 0.15, 0.05], numCandidates: 16, limit: 3 } },\n  { $project: { _id: 0, name: 1, kind: 1, score: { $meta: \"vectorSearchScore\" } } }\n])",
+    "datasource": {
+      "sample": "sample_playground"
     }
   }
 ]

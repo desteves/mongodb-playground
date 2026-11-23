@@ -72,6 +72,13 @@ check("openapi.json is 3.1 and lists /api/v1/run",
       s == 200 and str(spec.get("openapi", "")).startswith("3.1") and "/api/v1/run" in spec.get("paths", {}), s)
 s, _, spec2 = call("GET", "/openapi.json")
 check("root alias /openapi.json", s == 200 and spec2 == spec, s)
+for page in ["/", "/about", "/docs/api", "/docs/mcp", "/docs/quickstart", "/docs/run-it-yourself"]:
+    st, hd, md = call("GET", page, headers={"Accept": "text/markdown"})
+    check(f"markdown for agents: {page}", st == 200 and "text/markdown" in hd.get("content-type", "") and md.startswith("---") if isinstance(md, str) else False, (st, hd.get("content-type"), str(md)[:80]))
+s, h, _ = call("GET", "/api/v1/openapi.json")
+check("discovery documents are cacheable for a few minutes", s == 200 and "max-age=300" in (h.get("Cache-Control") or ""), dict(h))
+s, h, _ = call("POST", "/api/v1/validate", {"script": "db.c.find()"})
+check("work endpoints are not given a cache lifetime", "max-age" not in (h.get("Cache-Control") or ""), dict(h))
 s, _, txt = call("GET", "/llms.txt")
 check("llms.txt", s == 200 and "MongoDB Playground" in txt and "/api/v1/run" in txt, s)
 s, _, examples = call("GET", "/api/v1/examples")
@@ -84,7 +91,7 @@ check("single and multi templates exist and share the per-collection shape",
       and "documents:" in tpl["single"]["config"] and "documents:" in tpl["multi"]["config"], list(tpl))
 s, _, g = call("GET", "/api/v1/guide")
 opts = [o["id"] for o in g.get("options", [])] if isinstance(g, dict) else []
-check("setup guide lists every way to run it", s == 200 and opts == ["hosted", "mcp", "atlas-local", "atlas-free", "atlas-ephemeral", "docker", "desktop"], (s, opts))
+check("setup guide lists every way to run it", s == 200 and opts == ["hosted", "mcp", "atlas-local", "docker", "desktop", "atlas-free", "atlas-ephemeral"], (s, opts))
 check("guide has the Atlas sign-up link with UTMs, no placeholders left",
       "utm_campaign=devrel&utm_source=third-party-content&utm_medium=cta&utm_content=mongodb-playground&utm_term=diana.esteves" in str(g) and "{origin}" not in str(g) and "{atlasRegister}" not in str(g), str(g)[:300])
 s, _, card = call("GET", "/.well-known/mcp.json")
@@ -141,9 +148,12 @@ for ex in examples if isinstance(examples, list) else []:
     if needs_search and not limits.get("searchSupported"):
         print(f"SKIP  example {ex['id']} (this deployment has no Atlas Search)")
         continue
-    if "datasource" in req and not limits.get("sampleSupported"):
-        print(f"SKIP  example {ex['id']} (no sample data loaded)")
-        continue
+    if "datasource" in req:
+        _, _, listing = call("GET", "/api/v1/samples")
+        have = [d["name"] for d in listing.get("databases", [])] if isinstance(listing, dict) else []
+        if req["datasource"].get("sample") not in have:
+            print(f"SKIP  example {ex['id']} (sample database {req['datasource'].get('sample')} not loaded)")
+            continue
     s, _, b = call("POST", "/api/v1/run", req)
     check(f"example {ex['id']} runs", s == 200 and b.get("ok") is True and b.get("statements"), (s, b))
     s, _, b = call("POST", "/api/v1/explain", req)
@@ -209,7 +219,7 @@ s, _, b = call("POST", "/api/v1/share", dict(shared, collection="other_name"))
 check("a different playground is still rejected or shared", s == 422 or (s == 200 and b.get("id") != sid), (s, b))
 s, h, b = call("GET", f"/api/v1/p/{sid}")
 check("load share round-trips the text exactly", s == 200 and b.get("query") == shared["query"] and b.get("collections") == shared["collections"], (s, b))
-check("shares are cacheable forever", "immutable" in (h.get("Cache-Control") or ""), dict(h))
+check("shares are cacheable, for at most a day", "immutable" in (h.get("Cache-Control") or "") and "max-age=86400" in (h.get("Cache-Control") or ""), dict(h))
 s, _, b = call("POST", "/api/v1/run", {k: b[k] for k in ("mode", "collection", "collections", "query")})
 check("a loaded share runs as-is", s == 200 and [d["name"] for d in b["results"]] == ["Ada"], (s, b))
 s, _, b = call("GET", "/api/v1/p/doesnotexist")

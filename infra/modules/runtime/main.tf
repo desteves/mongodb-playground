@@ -6,6 +6,8 @@ variable "subnetwork" { type = string }
 variable "secret_ids" { type = map(string) }
 variable "concurrency" { type = number }
 variable "max_instances" { type = number }
+variable "min_instances" { type = number }
+variable "feature_sample_data" { type = bool }
 variable "domain" { type = string }
 variable "internal_token" {
   type      = string
@@ -41,7 +43,7 @@ resource "google_cloud_run_v2_service" "api" {
     timeout = "120s"
 
     scaling {
-      min_instance_count = 0
+      min_instance_count = var.min_instances
       max_instance_count = var.max_instances
     }
 
@@ -60,6 +62,8 @@ resource "google_cloud_run_v2_service" "api" {
         container_port = 8080
       }
       resources {
+        # More CPU while the container starts, so a scale-up request does not wait on a cold process.
+        startup_cpu_boost = true
         # Results are uncapped, so leave memory headroom for big aggregations.
         limits = {
           cpu    = "1"
@@ -94,6 +98,13 @@ resource "google_cloud_run_v2_service" "api" {
         for_each = var.turnstile_site_key == "" ? [] : [var.turnstile_site_key]
         content {
           name  = "TURNSTILE_SITE_KEY"
+          value = env.value
+        }
+      }
+      dynamic "env" {
+        for_each = var.feature_sample_data ? ["1"] : []
+        content {
+          name  = "FEATURE_SAMPLE_DATA"
           value = env.value
         }
       }

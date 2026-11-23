@@ -52,6 +52,31 @@ resource "google_monitoring_alert_policy" "down" {
   notification_channels = [google_monitoring_notification_channel.email[0].id]
 }
 
+# The API logs this warning (from the scheduled rollup job) when stored share links pass 80 % of SHARES_MAX_TOTAL.
+resource "google_monitoring_alert_policy" "shares_nearly_full" {
+  count        = var.notification_email == "" ? 0 : 1
+  project      = var.project_id
+  display_name = "Playground share storage is above 80 % of its cap"
+  combiner     = "OR"
+  conditions {
+    display_name = "Share storage warning in the API log"
+    condition_matched_log {
+      filter = "resource.type=\"cloud_run_revision\" AND jsonPayload.fields.message:\"share storage is above 80\""
+    }
+  }
+  alert_strategy {
+    # One email a day at most while it stays above the line.
+    notification_rate_limit {
+      period = "86400s"
+    }
+  }
+  documentation {
+    content   = "Stored shares passed 80 % of SHARES_MAX_TOTAL. Raise the cap, or remove abusive shares with DELETE /internal/shares/<id>."
+    mime_type = "text/markdown"
+  }
+  notification_channels = [google_monitoring_notification_channel.email[0].id]
+}
+
 resource "google_billing_budget" "monthly" {
   count           = var.billing_account == "" ? 0 : 1
   billing_account = var.billing_account

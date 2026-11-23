@@ -17,7 +17,7 @@ test('the left nav reaches every page and the head follows', async ({ page }) =>
     await expect(page.locator('h1')).toBeVisible();
   }
   await nav.getByRole('link', { name: 'Playground' }).click();
-  await expect(page).toHaveTitle(/Online MongoDB Shell/);
+  await expect(page).toHaveTitle(/Online MongoDB Playground/);
 });
 
 test('About says which Atlas cluster tier it runs on', async ({ page }) => {
@@ -63,18 +63,23 @@ test('the API and MCP pages show how to connect', async ({ page }) => {
 
 test('the run-it-yourself page lists local, free and ephemeral Atlas options', async ({ page }) => {
   await page.goto('/docs/run-it-yourself');
-  for (const t of [/Run locally with the Atlas CLI/, /Free-forever Atlas cluster/, /Ephemeral Atlas cluster/, /Docker Compose/]) {
+  for (const t of [/Which one should I use/, /Run locally with the Atlas CLI/, /Free-forever Atlas cluster/, /Ephemeral Atlas cluster/, /Docker Compose/]) {
     await expect(page.getByRole('heading', { name: t })).toBeVisible();
   }
 });
 
 test('search engines get what they need', async ({ page, request }) => {
   await page.goto('/');
-  await expect(page.locator('meta[name="description"]')).toHaveAttribute('content', /online MongoDB shell/i);
-  await expect(page.locator('meta[name="keywords"]')).toHaveAttribute('content', /online mongodb shell.*mongodb playground/i);
+  await expect(page.locator('meta[name="description"]')).toHaveAttribute('content', /online MongoDB playground/i);
+  await expect(page.locator('meta[name="keywords"]')).toHaveAttribute('content', /online mongodb playground.*mongodb playground/i);
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', 'https://mongoplayground.com/');
-  const ld = JSON.parse((await page.locator('script[type="application/ld+json"]').textContent()) ?? '{}');
-  expect(ld['@type']).toBe('WebApplication');
+  // The home page carries a WebApplication and a FAQPage block.
+  const blocks = await page.locator('script[type="application/ld+json"]').allTextContents();
+  expect(blocks.map((b) => JSON.parse(b)['@type']).sort()).toEqual(['FAQPage', 'WebApplication']);
+  // Crawlers that do not run JavaScript get each page's own text, title and structured data in the HTML.
+  const about = await (await request.get('/about')).text();
+  expect(about).toContain('<h1>About MongoDB Playground</h1>');
+  expect(about).toContain('"@type":"AboutPage"');
   const robots = await request.get('/robots.txt');
   expect(await robots.text()).toContain('Sitemap: https://mongoplayground.com/sitemap.xml');
   const sitemap = await request.get('/sitemap.xml');

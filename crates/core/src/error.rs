@@ -22,6 +22,9 @@ pub enum PlaygroundError {
     Busy,
     #[error("{0}")]
     NotFound(String),
+    /// The service cannot take more of this kind of content right now (for example, share storage is full).
+    #[error("{0}")]
+    Full(String),
     /// Too many requests from one client; the number is seconds until a retry can succeed.
     #[error("rate limit reached; retry in {0} s")]
     RateLimited(u64),
@@ -37,6 +40,7 @@ impl PlaygroundError {
             Self::Unavailable => "unavailable",
             Self::Busy => "busy",
             Self::NotFound(_) => "not_found",
+            Self::Full(_) => "capacity",
             Self::RateLimited(_) => "rate_limited",
         }
     }
@@ -53,6 +57,7 @@ impl PlaygroundError {
             Self::Unavailable => "Retry in a few seconds.",
             Self::Busy => "Runs that build a search index are limited; retry in a few seconds.",
             Self::RateLimited(_) => "Wait for the Retry-After header's number of seconds. People using the web app get a higher limit after the browser verification; agents should back off and retry.",
+            Self::Full(_) => "Try again later, or share the playground another way: Export gives a script you can keep.",
             Self::NotFound(_) => "Check the id. Shared playgrounds expire after 90 days without a view.",
         }
     }

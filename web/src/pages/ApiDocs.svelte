@@ -102,6 +102,8 @@
     </div>
   </div>
 
+  <p>New here? Try a request in the web app first: <a href="/?example=aggregate-group">an aggregation</a>, <a href="/?example=index-explain">an index and its query plan</a>, or follow the <a href="/docs/quickstart">Quickstart</a>.</p>
+
   <h2>For agents and tools</h2>
   <ul>
     <li><a href="/llms.txt" target="_blank" rel="noopener">/llms.txt</a>: a quick start written for LLMs</li>

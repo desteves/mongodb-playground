@@ -935,3 +935,29 @@ async fn a_result_explosion_hits_the_byte_ceiling_not_the_servers_memory() {
         "{e:?}"
     );
 }
+
+/// The prebuilt example datasets seed, are queryable at once, and serve the built-in search examples.
+#[tokio::test]
+async fn prebuilt_example_datasets_are_seeded_and_searchable() {
+    let Ok(uri) = std::env::var("MONGODB_URI") else {
+        return;
+    };
+    let Some(r) = runner().await else { return };
+    if !r.search_supported().await {
+        return;
+    }
+    let report = playground_core::seed::seed_examples(&uri).await.unwrap();
+    assert_eq!(report.database, "sample_playground");
+    assert_eq!(report.collections.len(), 2);
+    // running it again is harmless
+    playground_core::seed::seed_examples(&uri).await.unwrap();
+    let req: playground_core::ScriptRequest = serde_json::from_value(json!({
+        "datasource": {"sample": "sample_playground"},
+        "script": "db.movies.aggregate([{ $search: { text: { query: 'alien', path: ['title', 'plot'] } } }, { $project: { _id: 0, title: 1 } }])\ndb.items.aggregate([{ $vectorSearch: { index: 'vector_index', path: 'embedding', queryVector: [0.85, 0.15, 0.05], numCandidates: 16, limit: 3 } }, { $project: { _id: 0, name: 1 } }])"
+    }))
+    .unwrap();
+    let out = r.run_script(&req).await.unwrap();
+    assert!(out.ok, "{:?}", out.error);
+    assert!(!out.statements[0].results.is_empty());
+    assert_eq!(out.statements[1].results.len(), 3);
+}

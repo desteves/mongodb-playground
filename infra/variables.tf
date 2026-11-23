@@ -67,13 +67,25 @@ variable "termination_protection" {
 variable "sample_databases" {
   type        = list(string)
   description = "Sample databases the read-only user may read. Load them with: atlas clusters sampleData load <cluster>."
-  default     = ["sample_mflix", "sample_airbnb", "sample_restaurants", "sample_training", "sample_supplies", "sample_analytics", "sample_geospatial", "sample_guides", "sample_weatherdata"]
+  default     = ["sample_mflix", "sample_airbnb", "sample_restaurants", "sample_training", "sample_supplies", "sample_playground", "sample_analytics", "sample_geospatial", "sample_guides", "sample_weatherdata"]
 }
 
 variable "max_pool_size" {
   type        = number
   description = "Mongo maxPoolSize per Cloud Run instance. Also used as Cloud Run concurrency: each run holds one connection."
   default     = 8
+}
+
+variable "feature_sample_data" {
+  type        = bool
+  description = "Turns on FEATURE_SAMPLE_DATA: read-only queries against sample_* databases and the examples that use them (only offered when their database exists on the cluster)."
+  default     = true
+}
+
+variable "min_instances" {
+  type        = number
+  description = "Cloud Run instances kept warm. 1 avoids a cold start (a container start plus a MongoDB connection) for the first visitor after idle; it costs a few dollars a month. 0 scales to zero."
+  default     = 1
 }
 
 variable "max_instances" {

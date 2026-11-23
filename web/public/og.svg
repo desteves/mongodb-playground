@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#001E2B"/>
+  <rect x="0" y="0" width="1200" height="8" fill="#00ED64"/>
+  <path d="M120 150c-14 56-98 98-98 196 0 56 42 112 98 126 56-14 98-70 98-126 0-98-84-140-98-196z" transform="translate(40 20) scale(0.9)" fill="#00ED64"/>
+  <path d="M196 210v270" stroke="#001E2B" stroke-width="10" stroke-linecap="round"/>
+  <text x="330" y="270" font-family="Helvetica, Arial, sans-serif" font-size="84" font-weight="700" fill="#FFFFFF">Online MongoDB</text>
+  <text x="330" y="370" font-family="Helvetica, Arial, sans-serif" font-size="84" font-weight="700" fill="#00ED64">Playground</text>
+  <text x="330" y="450" font-family="Helvetica, Arial, sans-serif" font-size="34" fill="#C1C7C6">Run queries and aggregations, see query plans,</text>
+  <text x="330" y="495" font-family="Helvetica, Arial, sans-serif" font-size="34" fill="#C1C7C6">try Atlas Search and Vector Search. No sign-up.</text>
+  <text x="330" y="570" font-family="Helvetica, Arial, sans-serif" font-size="30" fill="#00ED64">mongoplayground.com</text>
+</svg>

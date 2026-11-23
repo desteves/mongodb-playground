@@ -1,6 +1,6 @@
 # v0.1.0: first release
 
-An online MongoDB shell for builders, human and agent alike: <https://mongoplayground.com>
+An online MongoDB playground for builders, human and agent alike: <https://mongoplayground.com>
 
 ## Highlights
 

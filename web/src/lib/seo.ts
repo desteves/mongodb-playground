@@ -15,18 +15,23 @@ export function setPage(title: string, description: string, path: string) {
   const url = SITE + (path === '/' ? '/' : path);
   meta('link[rel="canonical"]', 'href', url);
   meta('meta[property="og:url"]', 'content', url);
+  // The Markdown twin of this page, for agents (see crates/api/src/pages.rs).
+  const bare = path === '/' ? '' : path.replace(/\/$/, '');
+  meta('link[rel="alternate"][type="text/markdown"]', 'href', bare in PAGES_PATHS ? (bare === '' ? '/index.md' : `${bare}.md`) : '/index.md');
 }
+
+const PAGES_PATHS: Record<string, true> = { '': true, '/docs/quickstart': true, '/docs/api': true, '/docs/mcp': true, '/docs/run-it-yourself': true, '/about': true };
 
 export const PAGES: Record<string, { title: string; description: string }> = {
   '/': {
-    title: 'Online MongoDB Shell – Test Your Queries in the Browser | MongoDB Playground',
+    title: 'Online MongoDB Playground – Test Queries, Aggregations & Atlas Search',
     description:
-      'Free online MongoDB shell and query playground. Paste documents, run mongosh-style find, aggregate, update and delete commands, see query plans, try Atlas Search and Vector Search, then share or export. No install, no sign-up.',
+      'Free online MongoDB playground on a real cluster: run mongosh-style queries and aggregations, see query plans, try Atlas Search and Vector Search, share links. No sign-up.',
   },
   '/docs/quickstart': {
     title: 'MongoDB Playground Quickstart – Test a MongoDB Query in 60 Seconds',
     description:
-      'Learn the online MongoDB shell in minutes: load sample documents, run find, aggregate and update commands, read query plans, add indexes, try Atlas Search and Vector Search, share and export.',
+      'Learn the online MongoDB playground in minutes: load sample documents, run find, aggregate and update commands, read query plans, add indexes, try Atlas Search and Vector Search, share and export.',
   },
   '/docs/api': {
     title: 'MongoDB Playground REST API – Run mongosh Scripts Over HTTP',
@@ -46,6 +51,6 @@ export const PAGES: Record<string, { title: string; description: string }> = {
   '/about': {
     title: 'About MongoDB Playground – Runs on a Dedicated MongoDB Atlas Cluster',
     description:
-      'How the online MongoDB shell works: throwaway databases on a dedicated MongoDB Atlas cluster, limits, privacy, and the stack behind it.',
+      'How the online MongoDB playground works: throwaway databases on a dedicated MongoDB Atlas cluster, limits, privacy, and the stack behind it.',
   },
 };

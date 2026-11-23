@@ -529,6 +529,84 @@ fn parse_find(q: &Value) -> Result<Query> {
     })
 }
 
+/// Top-level aggregation stages that are allowed. Anything not listed is rejected, so a stage added
+/// to MongoDB later is denied until it is reviewed. Stages nested in `$lookup`, `$unionWith` and
+/// `$facet` are covered by `FORBIDDEN` (see `walk`).
+const ALLOWED_STAGES: &[&str] = &[
+    "$addFields",
+    "$bucket",
+    "$bucketAuto",
+    "$count",
+    "$facet",
+    "$geoNear",
+    "$graphLookup",
+    "$group",
+    "$limit",
+    "$lookup",
+    "$match",
+    "$project",
+    "$redact",
+    "$replaceRoot",
+    "$replaceWith",
+    "$sample",
+    "$search",
+    "$searchMeta",
+    "$vectorSearch",
+    "$set",
+    "$skip",
+    "$sort",
+    "$sortByCount",
+    "$unionWith",
+    "$unset",
+    "$unwind",
+    "$setWindowFields",
+    "$densify",
+    "$fill",
+    "$rankFusion",
+    "$scoreFusion",
+    "$score",
+    "$rerank",
+];
+
+/// Every stage has one operator and it is on the allowlist (or is forbidden, which `walk` reports).
+fn check_stages(stages: &[Document], what: &str) -> Result<()> {
+    for (i, stage) in stages.iter().enumerate() {
+        if stage.len() != 1 {
+            return Err(invalid(format!(
+                "{what} {i} must have exactly one stage operator, such as $match"
+            )));
+        }
+        let name = stage.keys().next().map(String::as_str).unwrap_or_default();
+        if !ALLOWED_STAGES.contains(&name) && !FORBIDDEN.contains(&name) {
+            return Err(PlaygroundError::Forbidden(format!(
+                "{what} {i}: `{name}` is not a supported aggregation stage in the playground"
+            )));
+        }
+    }
+    Ok(())
+}
+
+/// Pipelines nested in `$lookup`, `$unionWith` (key `pipeline`) and `$facet` (every value).
+fn check_nested_pipelines(op: &str, v: &Bson) -> Result<()> {
+    let as_stages = |b: &Bson| -> Option<Vec<Document>> {
+        match b {
+            Bson::Array(a) => a.iter().map(|s| s.as_document().cloned()).collect(),
+            _ => None,
+        }
+    };
+    let Bson::Document(d) = v else { return Ok(()) };
+    let pipelines: Vec<&Bson> = match op {
+        "$facet" => d.values().collect(),
+        _ => d.get("pipeline").into_iter().collect(),
+    };
+    for p in pipelines {
+        if let Some(stages) = as_stages(p) {
+            check_stages(&stages, &format!("a stage inside {op}"))?;
+        }
+    }
+    Ok(())
+}
+
 fn parse_aggregate(q: &Value) -> Result<Query> {
     let stages = q
         .as_array()
@@ -541,6 +619,7 @@ fn parse_aggregate(q: &Value) -> Result<Query> {
         .enumerate()
         .map(|(i, s)| to_document(s, &format!("stage {i}")))
         .collect::<Result<Vec<_>>>()?;
+    check_stages(&pipeline, "stage")?;
     Ok(Query::Aggregate { pipeline })
 }
 
@@ -655,6 +734,9 @@ pub(crate) fn walk(b: &Bson, depth: usize, limits: &Limits) -> Result<()> {
                 }
                 if matches!(k.as_str(), "$lookup" | "$graphLookup" | "$unionWith") {
                     check_same_database(k, v)?;
+                }
+                if matches!(k.as_str(), "$lookup" | "$unionWith" | "$facet") {
+                    check_nested_pipelines(k, v)?;
                 }
                 if k == "$regex" {
                     if let Bson::String(pattern) = v {
@@ -980,6 +1062,128 @@ mod tests {
                 prepare(&r, &limits()),
                 Err(PlaygroundError::Forbidden(_))
             ));
+        }
+    }
+
+    #[test]
+    fn unknown_top_level_stages_are_denied_by_default() {
+        for pipeline in [
+            json!([{ "$somethingNew": {} }]),
+            json!([{ "$match": {}, "$out": "x" }]),
+        ] {
+            let r = req("aggregate", pipeline);
+            assert!(prepare(&r, &limits()).is_err());
+        }
+        for pipeline in [
+            json!([{ "$lookup": { "from": "x", "as": "y", "pipeline": [{ "$newStage": {} }] } }]),
+            json!([{ "$facet": { "a": [{ "$newStage": {} }] } }]),
+            json!([{ "$unionWith": { "coll": "x", "pipeline": [{ "$match": {}, "$limit": 1 }] } }]),
+        ] {
+            let r = req("aggregate", pipeline);
+            assert!(prepare(&r, &limits()).is_err());
+        }
+        let nested = req(
+            "aggregate",
+            json!([{ "$facet": { "a": [{ "$match": {} }], "b": [{ "$count": "n" }] } }]),
+        );
+        assert!(prepare(&nested, &limits()).is_ok());
+        let ok = req("aggregate", json!([{ "$match": {} }, { "$limit": 1 }]));
+        assert!(prepare(&ok, &limits()).is_ok());
+    }
+
+    /// Every aggregation stage in the MongoDB docs is either allowed or deliberately denied, so a new
+    /// entry in `ALLOWED_STAGES` or `FORBIDDEN` is a conscious choice (and a typo shows up here).
+    #[test]
+    fn every_documented_stage_is_classified() {
+        let documented = [
+            "$addFields",
+            "$bucket",
+            "$bucketAuto",
+            "$changeStream",
+            "$changeStreamSplitLargeEvent",
+            "$collStats",
+            "$count",
+            "$currentOp",
+            "$densify",
+            "$documents",
+            "$facet",
+            "$fill",
+            "$geoNear",
+            "$graphLookup",
+            "$group",
+            "$indexStats",
+            "$limit",
+            "$listLocalSessions",
+            "$listSampledQueries",
+            "$listSearchIndexes",
+            "$listSessions",
+            "$lookup",
+            "$match",
+            "$merge",
+            "$out",
+            "$planCacheStats",
+            "$project",
+            "$queryStats",
+            "$redact",
+            "$replaceRoot",
+            "$replaceWith",
+            "$sample",
+            "$search",
+            "$searchMeta",
+            "$set",
+            "$setWindowFields",
+            "$shardedDataDistribution",
+            "$skip",
+            "$sort",
+            "$sortByCount",
+            "$unionWith",
+            "$unset",
+            "$unwind",
+            "$vectorSearch",
+        ];
+        for stage in documented {
+            assert!(
+                ALLOWED_STAGES.contains(&stage) != FORBIDDEN.contains(&stage),
+                "{stage} must be in exactly one of ALLOWED_STAGES and FORBIDDEN"
+            );
+        }
+        for s in FORBIDDEN {
+            assert!(
+                !ALLOWED_STAGES.contains(s),
+                "{s} is both allowed and forbidden"
+            );
+        }
+    }
+
+    /// A deterministic fuzz: a forbidden operator hidden at a random place in a random nest of documents
+    /// and arrays is always found.
+    #[test]
+    fn forbidden_operators_are_found_wherever_they_hide() {
+        let mut seed: u64 = 0x2545_F491_4F6C_DD1D;
+        let mut next = move |n: u64| {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            seed % n
+        };
+        for _ in 0..500 {
+            let bad = FORBIDDEN[next(FORBIDDEN.len() as u64) as usize];
+            let mut value = json!({ bad: next(100) });
+            for _ in 0..next(6) {
+                value = match next(3) {
+                    0 => json!({ "a": value, "b": 1 }),
+                    1 => json!([1, value]),
+                    _ => json!({ "$expr": { "$and": [ { "$eq": ["$x", 1] }, value ] } }),
+                };
+            }
+            let r = req("find", json!({ "filter": value }));
+            assert!(
+                matches!(
+                    prepare(&r, &limits()),
+                    Err(PlaygroundError::Forbidden(_)) | Err(PlaygroundError::Invalid(_))
+                ),
+                "{bad} slipped through in {r:?}"
+            );
         }
     }
 

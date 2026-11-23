@@ -28,9 +28,11 @@ cargo test --workspace --exclude playground-desktop
 
 echo "== starting the API on :${API_PORT} =="
 cargo build -p playground-api
+echo "== seeding the prebuilt example datasets (a search and a vector index) =="
+./target/debug/api seed-examples
 # The smoke test sends hundreds of requests in a burst: lift the rate limits. The sample-data feature is on so
 # it is exercised too; production leaves it off.
-PORT="$API_PORT" FEATURE_SAMPLE_DATA=1 RATE_BASIC_BURST=100000 RATE_BASIC_PER_SEC=100000 RATE_VERIFIED_BURST=100000 RATE_VERIFIED_PER_SEC=100000 ./target/debug/api &
+PORT="$API_PORT" FEATURE_SAMPLE_DATA=1 SHARES_PER_CLIENT_PER_DAY=100000 RATE_BASIC_BURST=100000 RATE_BASIC_PER_SEC=100000 RATE_VERIFIED_BURST=100000 RATE_VERIFIED_PER_SEC=100000 ./target/debug/api &
 API_PID=$!
 for _ in $(seq 1 30); do
   kill -0 "$API_PID" 2>/dev/null || { echo "the API exited before it was healthy" >&2; exit 1; }
