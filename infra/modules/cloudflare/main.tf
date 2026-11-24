@@ -129,6 +129,31 @@ resource "cloudflare_ruleset" "rate_limit" {
   }
 }
 
+# Search engines and other verified bots must never be challenged or blocked by Cloudflare's own checks: a 403 for
+# Googlebot (seen once on 2026-11-22) keeps pages out of the index. `cf.client.bot` is Cloudflare's verified-bot
+# check (IP and reverse DNS), so it cannot be spoofed with a user agent. Cloud Armor still protects the origin.
+resource "cloudflare_ruleset" "verified_bots" {
+  zone_id     = var.zone_id
+  name        = "Verified bots"
+  description = "Do not challenge or block verified crawlers"
+  kind        = "zone"
+  phase       = "http_request_firewall_custom"
+
+  rules {
+    action      = "skip"
+    expression  = "(cf.client.bot)"
+    description = "Skip managed rules, browser integrity check, security level and user-agent blocks for verified bots"
+    enabled     = true
+    logging {
+      enabled = true
+    }
+    action_parameters {
+      phases   = ["http_request_firewall_managed"]
+      products = ["bic", "securityLevel", "uablock"]
+    }
+  }
+}
+
 # Cache rules, ordered: when several rules match, a LATER rule wins for the same setting, so the bypass
 # comes first and the specific allow-lists after it.
 #

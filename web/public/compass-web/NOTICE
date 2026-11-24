@@ -1,0 +1,21 @@
+MongoDB Compass Online island
+=============================
+
+Everything in this directory is licensed under the Server Side Public License, version 1 (SSPL-1.0); see LICENSE.
+The rest of MongoDB Playground is licensed under Apache-2.0; see ../../LICENSE. The same applies to the server half,
+../../crates/compass. Every source file here starts with an SPDX-License-Identifier: SSPL-1.0 header.
+
+Upstream
+--------
+MongoDB Compass is Copyright (c) MongoDB, Inc., SSPL-1.0.
+  https://github.com/mongodb-js/compass
+  Package: packages/compass-web (@mongodb-js/compass-web)
+  Tracked commit: f39797b8a7173585cb637e9bdea9c1bce0ee1299 (main, 2026-11-20)
+
+Status
+------
+No Compass code is committed. build-compass-web.sh fetches Compass at the commit above and builds it with compass-web.patch
+(the only change to Compass: a same-origin WebSocket address, one fixed connection, no AI or Atlas features, no utility
+workers). The built bundle is git-ignored (web/public/compass-web/) and only enters an image built with BUILD_COMPASS=1.
+Compass code must never be copied into files outside web/compass-island/ and crates/compass/. Record the upstream commit above
+each time it changes (the script reads it from here), and keep THIRD_PARTY_LICENSES.md in the repository root in sync.
