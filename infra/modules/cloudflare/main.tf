@@ -149,7 +149,7 @@ resource "cloudflare_ruleset" "verified_bots" {
     }
     action_parameters {
       phases   = ["http_request_firewall_managed"]
-      products = ["bic", "securityLevel", "uablock"]
+      products = ["bic", "securityLevel", "uaBlock"]
     }
   }
 }
