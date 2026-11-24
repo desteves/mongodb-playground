@@ -90,7 +90,9 @@ test('search engines get what they need', async ({ page, request }) => {
 });
 
 test('unknown pages say so', async ({ page }) => {
-  await page.goto('/no/such/page');
+  const res = await page.goto('/no/such/page');
+  // A real 404, not a 200: made-up URLs must not look like pages of the site to a search engine.
+  expect(res?.status()).toBe(404);
   await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible();
 });
 

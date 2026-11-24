@@ -669,9 +669,37 @@ style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; c
 frame-src https://challenges.cloudflare.com; frame-ancestors 'none'; base-uri 'self'; \
 form-action 'self'; object-src 'none'";
 
+/// Paths the web app renders as pages (keep in step with `routes` in web/src/lib/ui.svelte.ts): the home page, the
+/// docs, About, shared playgrounds (`/p/<id>`) and the HTML file itself. Anything else is "page not found".
+fn is_spa_route(path: &str) -> bool {
+    const PAGES: [&str; 6] = [
+        "/",
+        "/docs/quickstart",
+        "/docs/api",
+        "/docs/mcp",
+        "/docs/run-it-yourself",
+        "/about",
+    ];
+    PAGES.contains(&path)
+        || path == "/index.html"
+        || path
+            .strip_prefix("/p/")
+            .is_some_and(playground_core::is_valid_id)
+}
+
 async fn static_cache(req: axum::extract::Request, next: axum::middleware::Next) -> Response {
     let path = req.uri().path().to_string();
     let mut res = next.run(req).await;
+    // Unknown paths fall back to the app's HTML so it can say "Page not found". Say it in the status too (404, not 200):
+    // spam links and scanners hit made-up URLs, and a 200 would let search engines index them as pages of this site.
+    let is_html = res
+        .headers()
+        .get(header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|v| v.starts_with("text/html"));
+    if res.status() == StatusCode::OK && is_html && !is_spa_route(&path) {
+        *res.status_mut() = StatusCode::NOT_FOUND;
+    }
     if res.status().is_success() && !res.headers().contains_key(header::CACHE_CONTROL) {
         res.headers_mut().insert(
             header::CACHE_CONTROL,
@@ -942,7 +970,33 @@ async fn shutdown_signal() {
 
 #[cfg(test)]
 mod cache_tests {
-    use super::{static_cache_control, CSP};
+    use super::{is_spa_route, static_cache_control, CSP};
+
+    #[test]
+    fn only_the_apps_own_pages_are_200() {
+        for ok in [
+            "/",
+            "/about",
+            "/docs/api",
+            "/docs/run-it-yourself",
+            "/p/8f14e45f-ceea-467f-a8d4-5c1f0b7e2a11",
+            "/index.html",
+        ] {
+            assert!(is_spa_route(ok), "{ok}");
+        }
+        for bad in [
+            "/no/such/page",
+            "/wp-includes/wlwmanifest.xml",
+            "/pronews/qPOkn7/zWFAD/10-6671759716/",
+            "/about/",
+            "/docs",
+            "/p/",
+            "/p/a b",
+            "/p/../etc/passwd",
+        ] {
+            assert!(!is_spa_route(bad), "{bad}");
+        }
+    }
 
     #[test]
     fn the_csp_allows_only_self_and_turnstile() {

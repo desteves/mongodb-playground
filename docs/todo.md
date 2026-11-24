@@ -13,9 +13,7 @@ Open work, newest decisions first. Cross items off (or delete them) when they sh
   minutes (the sample database list is cached), re-check, then delete the temporary user.
 - [ ] **Verify the alert email channel.** Google sent a verification email to the `notification_email` address for the
   new channel; click it, or the "Playground is down" and share-storage alerts will not arrive.
-- [ ] **Soft 404s.** Unknown paths (for example `/wp-includes/wlwmanifest.xml`) return `200` with the app's HTML
-  because the single-page app answers every path. Return a real `404` (with the same page) for paths that are not a
-  known route, so search engines do not index endless pages. The "unknown pages" e2e test needs the matching change.
+- [x] **Soft 404s.** Done: unknown paths now return a real `404` (with the app's HTML, so it still says "Page not found"). The list of real pages is `is_spa_route` in `crates/api/src/main.rs`; add a route there whenever the web app gets a new page (for example `/compass`).
 - [ ] **Raise HSTS** from 1 month to 6 or 12 months once nothing needs the site reachable without HTTPS (for example
   re-issuing the origin certificate with the proxy off); see `infra/modules/cloudflare/main.tf`.
 - [ ] **Uncommitted local changes:** Cloud Build edits (deploy waits only for the image push, `FUZZ_ITERATIONS`), the

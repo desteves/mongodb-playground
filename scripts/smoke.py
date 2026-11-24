@@ -269,6 +269,18 @@ else:
     s, _, b = call("GET", "/api/v1/samples/sample_playground")
     check("the dataset definition is 404 when sample data is off", s == 404, (s, b))
 
+# Made-up URLs are a real 404 (HTML so the app can say so), real pages are 200.
+import urllib.request, urllib.error
+def status_of(path, accept="text/html"):
+    req = urllib.request.Request(BASE + path, headers={"Accept": accept})
+    try:
+        with urllib.request.urlopen(req) as r:
+            return r.status
+    except urllib.error.HTTPError as e:
+        return e.code
+check("unknown paths are 404, not 200", status_of("/wp-includes/wlwmanifest.xml") == 404 and status_of("/no/such/page") == 404, None)
+check("real pages are 200", all(status_of(p) == 200 for p in ["/", "/about", "/docs/api"]), None)
+
 # --- search index -----------------------------------------------------------------------------
 search_req = {"mode": "aggregate", "collection": "movies",
               "collections": {"movies": [{"title": "The Matrix", "plot": "a hacker learns reality is simulated"}, {"title": "Alien", "plot": "a deadly creature in space"}]},
