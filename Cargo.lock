@@ -3031,7 +3031,7 @@ checksum = "f6b464fbc74e149a392436b17d523f769e057cb6877f6a5c4618bc6f11800548"
 
 [[package]]
 name = "playground-api"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "axum",
  "hmac",
@@ -3051,7 +3051,7 @@ dependencies = [
 
 [[package]]
 name = "playground-core"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "mongodb",
  "serde",
@@ -3065,7 +3065,7 @@ dependencies = [
 
 [[package]]
 name = "playground-desktop"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "playground-core",
  "serde",

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "MongoDB Playground API",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "description": "An online MongoDB playground for browsers and agents: run mongosh-style scripts (several statements, in order) against documents you supply, in a throwaway database, with query plans. See /llms.txt and the MCP endpoint at POST /api/v1/mcp."
   },
   "paths": {
