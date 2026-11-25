@@ -4,6 +4,17 @@ Open work, newest decisions first. Cross items off (or delete them) when they sh
 
 ## 0. Open right now (as of 2026-11-23)
 
+- [ ] **Cloudflare "Block AI training crawlers" must be OFF** (zone `bot_management.ai_training` = `disabled`). It was `block`,
+  which refused Googlebot (the home page and `/sitemap.xml`, 403, since 2026-11-24) and GPTBot, against this site's own policy
+  (`robots.txt` allows them and the content signal is `ai-train=yes`). It is a bot setting, so the "Verified bots" skip rule
+  cannot override it. The Cloudflare provider pinned here (4.x) has no resource for it, so it is set in the dashboard
+  (Security, Settings, Bot traffic) and can drift: re-check it after any Cloudflare change. Also review **Bot Fight Mode**
+  (`fight_mode`, currently on): it cannot be skipped and challenges non-browser clients such as scripts and agents.
+- [ ] **PageSpeed (mobile, 2026-11-25: Speed Index 1.7 s, green).** Done: the stylesheet and the theme script are inlined in
+  `index.html` at build time (the server adds the script's hash to the CSP), so nothing render-blocks the first paint. Still
+  open, lower value: unused JavaScript (about 73 KiB of CodeMirror features the first view does not use), one long task and a
+  forced reflow while the editors start, and the one-hour cache on small static files. Re-run PageSpeed after a deploy to
+  see the effect.
 - [ ] **Cloud Armor stage 2** (`enforce_origin_restriction = true`): after a few clean days of stage 1, re-run
   `python3 scripts/armor-report.py 24`, then follow section 1.
 - [ ] **Prebuilt example datasets are not confirmed live.** `FEATURE_SAMPLE_DATA` is on, but check that
@@ -228,3 +239,5 @@ Ordered roughly by value for effort. Each item says why it matters here.
 - [-] **Cost.** Decided: keep the load balancer (it carries Cloud Armor and the origin lock). The load balancer and the M10 are the fixed costs. Dropping the load balancer (Cloud Run behind
   Cloudflare directly) saves money but loses Cloud Armor; decide after the origin lock is enforced.
 
+
+- Agentic Browsing (Lighthouse, experimental): WebMCP tools are registered in `web/src/lib/webmcp.ts` where `navigator.modelContext` exists; re-run the audit on Chrome 150+ after deploy and check tool schemas, accessibility tree and CLS (prerender-text swap).

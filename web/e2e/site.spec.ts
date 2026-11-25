@@ -120,3 +120,23 @@ test('"Which one should I use?" links jump to their option, and links read as wo
   expect(texts.filter((t) => /^\s*(https?:\/\/|www\.)/.test(t))).toEqual([]);
   await expect(page.locator('#atlas-free a', { hasText: 'Register for Atlas' })).toBeVisible();
 });
+
+test('the first paint is in the HTML: styles and the theme script are inline, and the policy allows exactly that script', async ({ page, request }) => {
+  const res = await request.get('/', { headers: { accept: 'text/html' } });
+  const html = await res.text();
+  expect(html).toContain('<style>');
+  expect(html).not.toMatch(/<link rel="stylesheet"/);
+  expect(html).not.toContain('/theme-init.js');
+  expect(res.headers()['content-security-policy']).toMatch(/script-src 'self' 'sha256-[A-Za-z0-9+/=]+'/);
+
+  // The browser accepts it: no policy violations, the app starts, and the saved theme is applied before the app loads.
+  const violations: string[] = [];
+  page.on('console', (m) => {
+    if (/Content Security Policy/i.test(m.text())) violations.push(m.text());
+  });
+  await page.addInitScript(() => localStorage.setItem('theme', 'dark'));
+  await page.goto('/');
+  await expect(page.locator('.cm-content').first()).toBeVisible();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  expect(violations).toEqual([]);
+});

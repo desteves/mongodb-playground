@@ -4,6 +4,25 @@
 > documents you supply, and read a transcript. Each run uses a throwaway database that is deleted afterwards.
 > No account needed. Built for agents as much as people.
 
+## Docs
+
+- [Quickstart](https://mongoplayground.com/docs/quickstart.md): run a first query, add data and indexes, read a query plan
+- [REST API](https://mongoplayground.com/docs/api.md): run, explain, validate, share, export and format over HTTP
+- [MCP server](https://mongoplayground.com/docs/mcp.md): the same tools for AI agents (Streamable HTTP, stateless)
+- [Run it yourself](https://mongoplayground.com/docs/run-it-yourself.md): locally, with Docker, or on a free Atlas cluster
+- [About](https://mongoplayground.com/about.md): how it works, limits, privacy
+
+## Machine-readable
+
+- [OpenAPI 3.1](https://mongoplayground.com/api/v1/openapi.json): every endpoint and error shape
+- [MCP endpoint](https://mongoplayground.com/mcp): POST JSON-RPC; discovery card at /.well-known/mcp.json
+- [Templates and examples](https://mongoplayground.com/api/v1/examples): each one is a valid request body for POST /api/v1/run
+- [Limits and capabilities](https://mongoplayground.com/api/v1/limits): what this deployment allows right now
+
+## Optional
+
+- [Source code](https://github.com/desteves/mongodb-playground): Apache-2.0, issues and pull requests welcome
+
 ## Quick start for agents
 
 1. GET  /api/v1/limits     - hard limits and capabilities (searchSupported, sampleSupported, ...).
@@ -112,6 +131,11 @@ runs ONE operation and returns {"results": [...], "write": {...}, "explain": {..
 POST /api/v1/format {"text": "<data panel or shell script>", "width": 80} -> {"text": "<tidied>", "changed": true}. Re-indents and
 re-wraps; comments and every token stay, only whitespace and trailing commas change. Unbalanced brackets, strings or
 comments are a 422 naming the line. Nothing is run or stored.
+
+## In a browser
+
+Browsers that support WebMCP (`navigator.modelContext`) get the page's tools registered: run_query, explain_query, format_text,
+list_examples, get_limits. They call the same endpoints as above. Without a browser, use the REST API or POST /mcp.
 
 ## Share links
 

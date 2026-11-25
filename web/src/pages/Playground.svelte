@@ -585,10 +585,10 @@
         {#if source === 'sample'}
           <p class="note">Statements run against <code>{sampleDb}</code>: find, aggregate, countDocuments and distinct only.</p>
           {#if sampleText}
-            <div class="editor-wrap" data-testid="sample-data"><Editor value={sampleText} dark={isDark()} readonly /></div>
+            <div class="editor-wrap" data-testid="sample-data"><Editor label="Prebuilt dataset (read-only)" value={sampleText} dark={isDark()} readonly /></div>
           {/if}
         {:else}
-          <div class="editor-wrap"><Editor bind:this={dataEd} bind:value={config} dark={isDark()} onrun={runDefault} onformat={() => format('data')} /></div>
+          <div class="editor-wrap"><Editor bind:this={dataEd} label="Data: documents and indexes" bind:value={config} dark={isDark()} onrun={runDefault} onformat={() => format('data')} /></div>
         {/if}
       {/if}
     </section>
@@ -634,7 +634,7 @@
             {/if}
           </div>
         </header>
-        <div class="editor-wrap"><Editor bind:this={shellEd} bind:value={script} dark={isDark()} onrun={runDefault} onformat={() => format('shell')} onselection={(t, line) => ((selection = t), (selectionLine = line))} /></div>
+        <div class="editor-wrap"><Editor bind:this={shellEd} label="Shell: mongosh commands" bind:value={script} dark={isDark()} onrun={runDefault} onformat={() => format('shell')} onselection={(t, line) => ((selection = t), (selectionLine = line))} /></div>
       {/if}
     </section>
 
@@ -664,7 +664,7 @@
         {#if busy}<div class="bar" role="progressbar" aria-label="Running your statements"></div>{/if}
         {#if error}<pre class="error" role="alert">{error}</pre>{/if}
         {#if clipped}<p class="desc">The result is {Math.round(results.length / 1000).toLocaleString()} KB, so only the first 200 KB is shown. Copy and Export include all of it.</p>{/if}
-        <div class="editor-wrap" class:dim={busy}><Editor value={shown} dark={isDark()} readonly /></div>
+        <div class="editor-wrap" class:dim={busy}><Editor label="Results" value={shown} dark={isDark()} readonly /></div>
       {/if}
     </section>
   </div>

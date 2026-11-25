@@ -278,6 +278,12 @@ async fn main() {
         app
     };
 
+    // The policy names the hash of the inline script(s) in the built index.html.
+    let csp = Arc::new(csp_for(
+        &std::fs::read_to_string(std::path::Path::new(&web_dir).join("index.html"))
+            .unwrap_or_default(),
+    ));
+
     // Markdown for agents: every page has a Markdown twin (Accept: text/markdown, or <page>.md).
     let page_ctx = pages::PageCtx::new(
         &state.public_url,
@@ -304,7 +310,7 @@ async fn main() {
         // The SPA is served from the same origin in production (behind the load balancer);
         // permissive CORS matters for local dev and for browser-based agents.
         .layer(CorsLayer::permissive())
-        .layer(axum::middleware::from_fn(security_headers))
+        .layer(axum::middleware::from_fn_with_state(csp, security_headers))
         .layer(TraceLayer::new_for_http())
         .with_state(state.clone());
 
@@ -669,7 +675,11 @@ fn static_cache_control(path: &str) -> &'static str {
 
 /// Headers every response carries. The Content-Security-Policy applies to HTML only; Turnstile is the
 /// one third party (script and frame from challenges.cloudflare.com). HSTS is set by Cloudflare.
-async fn security_headers(req: axum::extract::Request, next: axum::middleware::Next) -> Response {
+async fn security_headers(
+    State(csp): State<Arc<String>>,
+    req: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> Response {
     use axum::http::HeaderValue as V;
     let mut res = next.run(req).await;
     let is_html = res
@@ -689,15 +699,70 @@ async fn security_headers(req: axum::extract::Request, next: axum::middleware::N
     );
     if is_html {
         h.insert(header::X_FRAME_OPTIONS, V::from_static("DENY"));
-        h.insert(header::CONTENT_SECURITY_POLICY, V::from_static(CSP));
+        if let Ok(v) = V::from_str(&csp) {
+            h.insert(header::CONTENT_SECURITY_POLICY, v);
+        }
     }
     res
 }
 
+/// The Content-Security-Policy for HTML pages, without any inline-script allowance (see `csp_for`).
 const CSP: &str = "default-src 'self'; script-src 'self' https://challenges.cloudflare.com; \
 style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; \
 frame-src https://challenges.cloudflare.com; frame-ancestors 'none'; base-uri 'self'; \
 form-action 'self'; object-src 'none'";
+
+/// The policy for this build of the web app: `CSP`, plus the hash of each inline `<script>` in `index.html` (the
+/// theme snippet is inlined at build time so the first paint does not wait for a separate request). Only scripts
+/// that are in the file that ships can run: a script injected into a page has a different hash and is refused.
+fn csp_for(index_html: &str) -> String {
+    use sha2::Digest;
+    let mut hashes = Vec::new();
+    let mut rest = index_html;
+    while let Some(i) = rest.find("<script>") {
+        let after = &rest[i + "<script>".len()..];
+        let Some(end) = after.find("</script>") else {
+            break;
+        };
+        hashes.push(format!(
+            "'sha256-{}'",
+            base64(&sha2::Sha256::digest(&after[..end]))
+        ));
+        rest = &after[end..];
+    }
+    if hashes.is_empty() {
+        return CSP.to_string();
+    }
+    CSP.replacen(
+        "script-src 'self'",
+        &format!("script-src 'self' {}", hashes.join(" ")),
+        1,
+    )
+}
+
+/// Standard base64 with padding (the form CSP hashes use); small enough not to need a crate.
+fn base64(bytes: &[u8]) -> String {
+    const A: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::new();
+    for c in bytes.chunks(3) {
+        let n = (u32::from(c[0]) << 16)
+            | (u32::from(*c.get(1).unwrap_or(&0)) << 8)
+            | u32::from(*c.get(2).unwrap_or(&0));
+        out.push(A[(n >> 18) as usize & 63] as char);
+        out.push(A[(n >> 12) as usize & 63] as char);
+        out.push(if c.len() > 1 {
+            A[(n >> 6) as usize & 63] as char
+        } else {
+            '='
+        });
+        out.push(if c.len() > 2 {
+            A[n as usize & 63] as char
+        } else {
+            '='
+        });
+    }
+    out
+}
 
 /// Paths the web app renders as pages (keep in step with `routes` in web/src/lib/ui.svelte.ts): the home page, the
 /// docs, About, shared playgrounds (`/p/<id>`) and the HTML file itself. Anything else is "page not found".
@@ -1000,7 +1065,8 @@ async fn shutdown_signal() {
 
 #[cfg(test)]
 mod cache_tests {
-    use super::{is_spa_route, static_cache_control, CSP};
+    use super::{base64, csp_for, is_spa_route, static_cache_control, CSP};
+    use sha2::Digest;
 
     #[test]
     fn only_the_apps_own_pages_are_200() {
@@ -1026,6 +1092,39 @@ mod cache_tests {
         ] {
             assert!(!is_spa_route(bad), "{bad}");
         }
+    }
+
+    #[test]
+    fn base64_matches_the_known_vectors() {
+        assert_eq!(base64(b""), "");
+        assert_eq!(base64(b"f"), "Zg==");
+        assert_eq!(base64(b"fo"), "Zm8=");
+        assert_eq!(base64(b"foo"), "Zm9v");
+        // the SHA-256 of "abc", as a CSP hash
+        assert_eq!(
+            base64(&sha2::Sha256::digest("abc")),
+            "ungWv48Bz+pBQUDeXa4iI7ADYaOWF3qctBD/YfIAFa0="
+        );
+    }
+
+    #[test]
+    fn the_csp_carries_the_hash_of_each_inline_script_and_nothing_else_inline() {
+        let html = "<head><script>abc</script><script type=\"application/ld+json\">{}</script><script src=\"/x.js\"></script></head>";
+        let csp = csp_for(html);
+        assert!(csp.contains("script-src 'self' 'sha256-ungWv48Bz+pBQUDeXa4iI7ADYaOWF3qctBD/YfIAFa0=' https://challenges.cloudflare.com"), "{csp}");
+        assert_eq!(
+            csp.matches("sha256-").count(),
+            1,
+            "only attribute-less inline scripts are allowed by hash"
+        );
+        assert!(
+            !csp.contains("'unsafe-inline'; img")
+                || csp.contains("style-src 'self' 'unsafe-inline'")
+        );
+        assert!(!csp.contains("script-src 'unsafe-inline'") && !csp.contains("unsafe-eval"));
+        // no inline script: the policy is the plain one
+        assert_eq!(csp_for("<script src=\"/x.js\"></script>"), CSP);
+        assert_eq!(csp_for(""), CSP);
     }
 
     #[test]

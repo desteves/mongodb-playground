@@ -17,6 +17,14 @@ test('opens on the single-collection template, in the per-collection shape', asy
   await expect(nav.getByRole('link', { name: 'Playground', exact: true })).toHaveAttribute('aria-current', 'page');
 });
 
+test('every editor has an accessible name, and Results is read-only', async ({ page }) => {
+  await expect(page.getByRole('textbox', { name: 'Data: documents and indexes' })).toBeVisible();
+  await expect(page.getByRole('textbox', { name: 'Shell: mongosh commands' })).toBeVisible();
+  const results = page.getByRole('textbox', { name: 'Results' });
+  await expect(results).toBeVisible();
+  await expect(results).toHaveAttribute('aria-readonly', 'true');
+});
+
 test('Run prints a shell-style transcript', async ({ page }) => {
   await run(page).click();
   // The Results panel points at the command instead of repeating it.

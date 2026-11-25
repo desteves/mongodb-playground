@@ -7,10 +7,12 @@
   import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
   import { tags as t } from '@lezer/highlight';
   import { javascript } from '@codemirror/lang-javascript';
+  import { darkSyntax, lightSyntax } from './editorColors';
 
   let {
     value = $bindable(''),
     readonly = false,
+    label = 'Editor',
     dark = false,
     onrun,
     onformat,
@@ -18,6 +20,8 @@
   }: {
     value?: string;
     readonly?: boolean;
+    /** The accessible name of the text box (screen readers, and AI agents reading the accessibility tree). */
+    label?: string;
     dark?: boolean;
     onrun?: () => void;
     /** Shift+Alt+F: tidy the text. */
@@ -29,23 +33,19 @@
   // The theme can change while the editor is open (light / dark / auto toggle).
   const theme = new Compartment();
 
-  // MongoDB palette: Evergreen surfaces, Spring Green strings, amber numbers.
-  const darkColors = HighlightStyle.define([
-    { tag: [t.keyword, t.operator, t.controlKeyword], color: '#c792ea' },
-    { tag: [t.string, t.regexp], color: '#00ed64' },
-    { tag: [t.number, t.bool, t.null, t.atom], color: '#ffc010' },
-    { tag: [t.propertyName], color: '#6dc8ff' },
-    { tag: [t.function(t.variableName), t.function(t.propertyName)], color: '#6dc8ff' },
-    { tag: t.comment, color: '#889397', fontStyle: 'italic' },
-  ]);
-  const lightColors = HighlightStyle.define([
-    { tag: [t.keyword, t.operator, t.controlKeyword], color: '#7b3fb5' },
-    { tag: [t.string, t.regexp], color: '#00684a' },
-    { tag: [t.number, t.bool, t.null, t.atom], color: '#944f01' },
-    { tag: [t.propertyName], color: '#016bf8' },
-    { tag: [t.function(t.variableName), t.function(t.propertyName)], color: '#016bf8' },
-    { tag: t.comment, color: '#5c6c75', fontStyle: 'italic' },
-  ]);
+  // MongoDB palette: Evergreen surfaces, Spring Green strings, amber numbers (the colours live in editorColors.ts, where a
+  // test keeps every one readable on every panel shade).
+  const highlight = (c: typeof lightSyntax) =>
+    HighlightStyle.define([
+      { tag: [t.keyword, t.operator, t.controlKeyword], color: c.keyword },
+      { tag: [t.string, t.regexp], color: c.string },
+      { tag: [t.number, t.bool, t.null, t.atom], color: c.number },
+      { tag: [t.propertyName], color: c.property },
+      { tag: [t.function(t.variableName), t.function(t.propertyName)], color: c.property },
+      { tag: t.comment, color: c.comment, fontStyle: 'italic' },
+    ]);
+  const darkColors = highlight(darkSyntax);
+  const lightColors = highlight(lightSyntax);
   const base = (isDark: boolean) =>
     EditorView.theme(
       {
@@ -103,6 +103,8 @@
           EditorState.readOnly.of(readonly),
           EditorView.editable.of(!readonly),
           EditorView.lineWrapping,
+          // Without a name the text box is announced as a bare "edit text", and an agent cannot tell the three apart.
+          EditorView.contentAttributes.of({ 'aria-label': label, ...(readonly ? { 'aria-readonly': 'true' } : {}) }),
           EditorView.updateListener.of((u) => {
             if (u.docChanged) value = u.state.doc.toString();
             if (u.selectionSet || u.docChanged) {
