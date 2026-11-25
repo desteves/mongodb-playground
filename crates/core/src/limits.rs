@@ -2,6 +2,11 @@
 pub const MAX_REGEX_PATTERN_LEN: usize = 256;
 /// Most `/pattern/` literals in one editor's text.
 pub const MAX_REGEX_LITERALS: usize = 20;
+/// Most variables (`var x = ...`) in one script, the largest one, and how much all the places that use a variable may
+/// add up to (a variable used in another variable can multiply: this keeps that from being a way to blow up memory).
+pub const MAX_SCRIPT_VARIABLES: usize = 50;
+pub const MAX_VARIABLE_BYTES: usize = 1024 * 1024;
+pub const MAX_EXPANDED_BYTES: usize = 8 * 1024 * 1024;
 
 /// Hard limits applied to every run. Shown to users in the "About" panel and served at
 /// `GET /api/v1/limits`.

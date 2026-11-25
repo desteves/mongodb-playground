@@ -56,6 +56,18 @@ async fn validate_query(state: State<'_, Desktop>, request_body: Value) -> Resul
     runner.validate_body(&request(request_body)?).map_err(err)
 }
 
+/// Tidy the data panel or a shell script (the same pass as `POST /api/v1/format`).
+#[tauri::command]
+fn format_text(text: String, width: Option<usize>) -> Result<Value, Value> {
+    let out = playground_core::format::tidy(
+        &text,
+        width.unwrap_or(playground_core::format::DEFAULT_WIDTH),
+    )
+    .map_err(err)?;
+    let changed = out.trim_end() != text.trim_end();
+    Ok(json!({ "text": out, "changed": changed }))
+}
+
 #[tauri::command]
 fn list_examples() -> Value {
     playground_core::examples()
@@ -125,6 +137,7 @@ pub fn run() {
             run_query,
             explain_query,
             validate_query,
+            format_text,
             list_examples,
             get_limits,
             get_connection,

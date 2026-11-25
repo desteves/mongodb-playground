@@ -35,6 +35,13 @@
     "script": "db.collection.aggregate([\n  { $group: { _id: \"$city\", avgAge: { $avg: \"$age\" }, n: { $sum: 1 } } },\n  { $sort: { n: -1 } }\n])"
   },
   {
+    "id": "variables-and-stages",
+    "title": "Variables: reuse stages across aggregations (find duplicates)",
+    "kind": "example",
+    "config": "db = {\n  orders: {\n    documents: [\n      { external_id: \"A-1\", total: 10 },\n      { external_id: \"A-1\", total: 12 },\n      { external_id: \"B-7\", total: 5 },\n      { external_id: \"C-3\", total: 8 },\n      { external_id: \"C-3\", total: 9 },\n      { external_id: \"C-3\", total: 4 }\n    ]\n  }\n}",
+    "script": "// Variables hold stages (or filters, or anything) you reuse. aggregate() takes the stages as separate arguments too.\nvar GROUP = { $group: { _id: \"$external_id\", count: { $sum: 1 } } }\nvar KEEP_IDS = { $group: { _id: \"$external_id\", count: { $sum: 1 }, docs: { $push: \"$_id\" } } }\nvar DUPLICATES = { $match: { count: { $gt: 1 } } }\nvar BIGGEST_FIRST = { $sort: { count: -1, _id: 1 } }\n\n// which external_ids appear more than once?\ndb.orders.aggregate(GROUP, DUPLICATES, BIGGEST_FIRST)\n\n// and which documents are they?\ndb.orders.aggregate(KEEP_IDS, DUPLICATES, BIGGEST_FIRST)"
+  },
+  {
     "id": "count-distinct",
     "title": "countDocuments and distinct",
     "kind": "example",

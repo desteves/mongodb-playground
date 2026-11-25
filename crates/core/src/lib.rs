@@ -6,6 +6,7 @@
 mod error;
 mod explain;
 mod export;
+pub mod format;
 mod limits;
 mod relaxed;
 mod request;

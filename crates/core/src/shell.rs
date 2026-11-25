@@ -276,6 +276,9 @@ fn parse_script(
                 format!("at most {MAX_STATEMENTS} statements are allowed"),
             );
         }
+        if declaration(&mut p)? {
+            continue;
+        }
         let start = p.pos;
         let line = p.line(start);
         let (collection, calls, end) = statement(&mut p)?;
@@ -305,11 +308,43 @@ fn parse_script(
     Ok(out)
 }
 
+/// `var name = value`, `let ...`, `const ...`, or `name = value` for a name declared before: reads the value (which may
+/// use earlier variables) and remembers it. Returns false, leaving the position alone, when this is not one.
+fn declaration(p: &mut Parser) -> Result<bool> {
+    let save = p.pos;
+    let Some(first) = p.ident()? else {
+        return Ok(false);
+    };
+    let keyword = matches!(first.as_str(), "var" | "let" | "const");
+    let at = p.pos;
+    let name = if keyword {
+        match p.ident()? {
+            Some(n) => n,
+            None => return p.fail(p.pos, format!("expected a variable name after `{first}`")),
+        }
+    } else if p.has_var(&first) {
+        first.clone()
+    } else {
+        p.pos = save;
+        return Ok(false);
+    };
+    if !p.eat('=')? {
+        if keyword {
+            return p.fail(p.pos, format!("expected `=` after `{first} {name}`"));
+        }
+        p.pos = save;
+        return Ok(false);
+    }
+    let value = p.value()?;
+    p.declare(at, &name, value)?;
+    Ok(true)
+}
+
 /// `db.people.find(...).sort(...)`, `db["people"]...`, `db.getCollection("people")...`
 fn statement(p: &mut Parser) -> Result<(String, Vec<Call>, usize)> {
     let at = p.pos;
     if p.ident()?.as_deref() != Some("db") {
-        return p.fail(at, "statements start with `db`, like db.people.find({...})");
+        return p.fail(at, "statements start with `db`, like db.people.find({...}), or declare a variable: var filter = {...}");
     }
     let collection = if p.eat('[')? {
         let s = p.string()?;
@@ -501,10 +536,15 @@ fn compile(
             wrap(q, explain)?
         }
         "aggregate" => {
-            arity(name, a, 1, 2)?;
-            options(a, 1, name, &["allowDiskUse", "cursor"])?;
-            let Some(Value::Array(stages)) = a.first() else {
-                return Err(invalid("aggregate() takes an array of stages: aggregate([{$match: {}}])"));
+            // aggregate([stage, stage], {options}) or, as the shell also allows, aggregate(stage, stage, ...)
+            let stages: Vec<Value> = match a.first() {
+                Some(Value::Array(stages)) => {
+                    arity(name, a, 1, 2)?;
+                    options(a, 1, name, &["allowDiskUse", "cursor"])?;
+                    stages.clone()
+                }
+                Some(Value::Object(_)) => a.to_vec(),
+                _ => return Err(invalid("aggregate() takes an array of stages, aggregate([{$match: {}}]), or the stages as separate arguments")),
             };
             if stages.is_empty() {
                 return Err(invalid("the pipeline has no stages"));
@@ -717,6 +757,125 @@ mod tests {
             .iter()
             .map(|s| s.op.label())
             .collect()
+    }
+
+    /// The pipeline of statement `i`, as stage names.
+    fn stages(p: &PreparedScript, i: usize) -> Vec<String> {
+        match &p.statements[i].op {
+            Op::Query(Query::Aggregate { pipeline }) => pipeline
+                .iter()
+                .map(|s| s.keys().next().cloned().unwrap_or_default())
+                .collect(),
+            other => panic!("not an aggregate: {}", other.label()),
+        }
+    }
+
+    #[test]
+    fn variables_hold_stages_and_aggregate_takes_them_as_arguments() {
+        let src = r#"
+            var ORIGINAL_GROUP =  { "$group": {
+                "_id": { "$ifNull": ["$external_id", null] },
+                "count": { "$sum": 1 }
+              } };
+            var SIMPLE_GROUP = {
+                "$group":
+                  {
+                      "_id": "$external_id",
+                      "count": { "$sum": 1 }
+                   }
+                }
+            var KEEP_IDS_GROUP =  {
+                "$group":
+                  {
+                      "_id": "$external_id" ,
+                      "count": { "$sum": 1 },
+                      "docs": { $push: "$_id"}
+                   }
+                };
+            var MATCH =  { "$match": { "count": { "$gt": 1 } } };
+            var SORT =   { "$sort": { "count": -1, "_id": 1 } };
+
+            // these are both the same!
+            db.collection.aggregate(ORIGINAL_GROUP, MATCH, SORT)
+            db.collection.aggregate(SIMPLE_GROUP, MATCH, SORT)
+
+            // to quickly identify docs with dup vals in the external_ids
+            db.collection.aggregate(KEEP_IDS_GROUP, MATCH, SORT)
+        "#;
+        let p = script(src).unwrap();
+        assert_eq!(p.statements.len(), 3, "declarations are not statements");
+        for i in 0..3 {
+            assert_eq!(stages(&p, i), ["$group", "$match", "$sort"]);
+        }
+        // the statement's own text and line are kept
+        let first = src
+            .lines()
+            .position(|l| l.contains("aggregate(ORIGINAL_GROUP"))
+            .unwrap()
+            + 1;
+        assert!(p.statements[0]
+            .text
+            .starts_with("db.collection.aggregate(ORIGINAL_GROUP"));
+        assert_eq!(p.statements[0].line, first);
+    }
+
+    #[test]
+    fn variables_work_inside_other_values_and_can_be_reassigned() {
+        let p = script("let adults = {age: {$gte: 18}}\nconst s = 'Ada'\ndb.people.find({$and: [adults, {name: s}]})\nadults = {age: {$gte: 65}}\ndb.people.find(adults);").unwrap();
+        assert_eq!(p.statements.len(), 2);
+    }
+
+    #[test]
+    fn aggregate_still_takes_an_array_and_options() {
+        assert_eq!(
+            ops("db.people.aggregate([{$match: {}}], {allowDiskUse: true})"),
+            ["aggregate"]
+        );
+        assert_eq!(
+            ops("db.people.aggregate({$match: {}}, {$limit: 1})"),
+            ["aggregate"]
+        );
+    }
+
+    #[test]
+    fn variable_mistakes_are_explained() {
+        let e = script("db.people.find(NOPE)").unwrap_err().to_string();
+        assert!(
+            e.contains("unknown value `NOPE`") && e.contains("var NOPE"),
+            "{e}"
+        );
+        let e = script("var db = 1").unwrap_err().to_string();
+        assert!(e.contains("cannot be used as a variable name"), "{e}");
+        let e = script("var x\ndb.people.find({})").unwrap_err().to_string();
+        assert!(e.contains("expected `=`"), "{e}");
+        let e = script("var = 1").unwrap_err().to_string();
+        assert!(e.contains("variable name"), "{e}");
+        let e = script("db.people.aggregate({$match: {}}, 5)")
+            .unwrap_err()
+            .to_string();
+        assert!(e.contains("stage 1") || e.contains("document"), "{e}");
+        let e = script("foo()").unwrap_err().to_string();
+        assert!(
+            e.contains("start with `db`") && e.contains("variable"),
+            "{e}"
+        );
+    }
+
+    #[test]
+    fn variables_cannot_be_used_to_blow_up_memory() {
+        // each level doubles the one before: it must be refused, quickly, not expanded
+        let mut src = String::from("var v0 = {a: \"0123456789012345678901234567890123456789\"}\n");
+        for i in 1..40 {
+            src.push_str(&format!("var v{i} = [v{p}, v{p}]\n", p = i - 1));
+        }
+        src.push_str("db.people.find(v39)");
+        let e = script(&src).unwrap_err().to_string();
+        assert!(e.contains("at most") || e.contains("add up to more"), "{e}");
+        let many: String = (0..60).map(|i| format!("var a{i} = 1\n")).collect();
+        assert!(script(&many)
+            .unwrap_err()
+            .to_string()
+            .contains("at most 50 variables"));
     }
 
     #[test]

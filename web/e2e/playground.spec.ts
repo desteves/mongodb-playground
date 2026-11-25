@@ -19,7 +19,9 @@ test('opens on the single-collection template, in the per-collection shape', asy
 
 test('Run prints a shell-style transcript', async ({ page }) => {
   await run(page).click();
-  await expect(editor(page, 2)).toContainText('> db.collection.find({ age: { $gt: 40 } })');
+  // The Results panel points at the command instead of repeating it.
+  await expect(editor(page, 2)).toContainText('// results for the command on line 1');
+  await expect(editor(page, 2)).not.toContainText('db.collection.find');
   await expect(editor(page, 2)).toContainText('name: "Linus"');
   await expect(editor(page, 2)).toContainText('name: "Grace"');
   await expect(editor(page, 2)).not.toContainText('name: "Ada"');
@@ -257,4 +259,27 @@ test('the prebuilt dataset shows read-only in the Data panel', async ({ page }) 
   await expect(data.locator('.cm-content')).toHaveAttribute('contenteditable', 'false');
   await expect(page.getByRole('button', { name: 'Clear the data panel' })).toHaveCount(0);
   await expect(page.locator('[data-pane="data"] .desc')).toContainText('read-only');
+});
+
+test('Format tidies the Shell and the Data panel, says when there is nothing to do, and refuses broken text', async ({ page }) => {
+  await editor(page, 1).click();
+  await page.keyboard.press('ControlOrMeta+a');
+  await page.keyboard.type('db.collection.find({age:{$gt:40}},{_id:0}).sort({age:-1})');
+  await page.locator('.pane').nth(1).getByRole('button', { name: 'Format' }).click();
+  await expect(editor(page, 1)).toContainText('db.collection.find({ age: { $gt: 40 } }, { _id: 0 }).sort({ age: -1 })');
+  // the Data panel: the template has hand-aligned spacing, so the first Format changes it and the second has nothing to do
+  const dataText = () => editor(page, 0).evaluate((el) => (el as HTMLElement).innerText);
+  expect(await dataText()).toMatch(/"Ada",\s{3}age/);
+  await page.locator('.pane').nth(0).getByRole('button', { name: 'Format' }).click();
+  await expect.poll(dataText).not.toMatch(/"Ada",\s{3}age/);
+  await expect(editor(page, 0)).toContainText('// up to 3 per collection'); // comments stay
+  await page.locator('.pane').nth(0).getByRole('button', { name: 'Format' }).click();
+  await expect(page.getByText('Already tidy')).toBeVisible();
+  // broken text is refused, with the line, and left alone
+  await editor(page, 1).click();
+  await page.keyboard.press('ControlOrMeta+a');
+  await page.keyboard.type('db.collection.find({ a: 1 )');
+  await page.locator('.pane').nth(1).getByRole('button', { name: 'Format' }).click();
+  await expect(page.getByText(/line 1/)).toBeVisible();
+  await expect(editor(page, 1)).toContainText('db.collection.find({ a: 1 )');
 });

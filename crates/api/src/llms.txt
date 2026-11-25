@@ -33,8 +33,9 @@ Markdown for agents: every page of the site is also served as Markdown, so you d
   "config": "db = { people: [ {name: 'Ada', age: 36}, {name: 'Linus', age: 55} ] }"
 }
 
-`script` is mongosh-style: db.<collection>.<method>(...) statements, one after another (newline or `;`), at most
-25, run in order against ONE database, so an insert is visible to the next find.
+`script` is mongosh-style: db.<collection>.<method>(...) statements, one after another (newline or `;`), plus variables
+(`var stage = {$match: {...}}`, also `let`/`const`, at most 50, usable inside any later value) and aggregate(stage, stage, ...) as
+well as aggregate([stages]). At most 25 statements, run in order against ONE database, so an insert is visible to the next find.
 Supported: find / findOne (+ .sort .limit .skip .projection .count .explain), aggregate, countDocuments,
 estimatedDocumentCount, distinct, insertOne, insertMany, updateOne, updateMany, replaceOne (option: upsert),
 deleteOne, deleteMany, createIndex, dropIndex, getIndexes, createSearchIndex.
@@ -105,6 +106,12 @@ still run so the plans have data and indexes), and "datasource": {"sample": "sam
 {"mode": "find|aggregate|count|distinct|insert|update|delete|listIndexes", "collection": "people",
  "collections": {...}, "query": ..., "indexes": {...}, "searchIndexes": {...}, "explain": "executionStats"}
 runs ONE operation and returns {"results": [...], "write": {...}, "explain": {...}, "elapsed_ms": n}. Prefer scripts.
+
+## Format
+
+POST /api/v1/format {"text": "<data panel or shell script>", "width": 80} -> {"text": "<tidied>", "changed": true}. Re-indents and
+re-wraps; comments and every token stay, only whitespace and trailing commas change. Unbalanced brackets, strings or
+comments are a 422 naming the line. Nothing is run or stored.
 
 ## Share links
 

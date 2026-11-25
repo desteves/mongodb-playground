@@ -55,6 +55,10 @@ A framed website with a left nav: **Playground**, **Quickstart**, **REST API**, 
 - **Export.** Always a preview first, with Copy and a Download confirmation: a `mongosh` script that recreates the data,
   indexes and statements (`mongosh <uri> --file playground.js`), the data as Extended JSON, the results as JSON, CSV or
   text, or the request as `curl`. API: `POST /api/v1/export`; MCP: `export_playground`.
+- **Format.** A Format button on the Data and Shell panels (Shift+Alt+F in an editor) tidies indentation and line breaks: short
+  objects, arrays and calls stay on one line, longer ones break one item per line. Comments, strings and regexes are kept, only whitespace
+  and trailing commas change, and the result is checked against the input first. Undo brings the old text back. Agents: `POST /api/v1/format`.
+  The Results panel no longer repeats each command; it says `// results for the command on line N`, and Export keeps the full transcript.
 - **Sample data is a feature flag, off by default** (`FEATURE_SAMPLE_DATA=1`; the Terraform variable `feature_sample_data` sets it on the deployed service, default on, and an example is only offered when its sample database exists on the cluster); the UI hides it and the API rejects
   `datasource` with a clear error. Templates and examples never depend on it.
 - **Links to mongodb.com** (any variant: www, cloud, docs, dochub) carry one fixed set of UTM parameters, defined once in

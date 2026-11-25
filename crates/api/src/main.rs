@@ -226,6 +226,7 @@ async fn main() {
         .route("/p/{id}", get(load_share))
         .route("/events", post(ui_event))
         .route("/export", post(export_handler))
+        .route("/format", post(format_handler))
         .route("/verify", post(guard::verify))
         .route("/samples", get(samples))
         .route("/samples/{db}", get(sample_definition))
@@ -549,6 +550,35 @@ async fn export_handler(
         "content": out.content,
     })))
 }
+
+/// Body of `POST /api/v1/format`.
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct FormatRequest {
+    text: String,
+    #[serde(default)]
+    width: Option<usize>,
+}
+
+/// Tidy the data panel (relaxed JSON) or a mongosh script: indentation and line breaks only; comments and every
+/// token stay. Nothing is run and nothing is stored.
+async fn format_handler(ApiJson(req): ApiJson<FormatRequest>) -> Result<Json<Value>, ApiError> {
+    if req.text.len() > FORMAT_MAX_BYTES {
+        return Err(ApiError(PlaygroundError::Invalid(format!(
+            "the text is {} bytes; the limit for formatting is {FORMAT_MAX_BYTES}",
+            req.text.len()
+        ))));
+    }
+    let text = playground_core::format::tidy(
+        &req.text,
+        req.width.unwrap_or(playground_core::format::DEFAULT_WIDTH),
+    )?;
+    let changed = text.trim_end() != req.text.trim_end();
+    Ok(Json(json!({ "text": text, "changed": changed })))
+}
+
+/// Largest text `POST /api/v1/format` accepts.
+const FORMAT_MAX_BYTES: usize = 1024 * 1024;
 
 async fn samples(State(s): State<Shared>) -> Result<Json<Value>, ApiError> {
     if !s.features.sample_data {

@@ -12,8 +12,37 @@ use serde_json::{json, Map, Number, Value};
 
 use crate::{
     error::PlaygroundError,
-    limits::{MAX_REGEX_LITERALS, MAX_REGEX_PATTERN_LEN},
+    limits::{
+        MAX_EXPANDED_BYTES, MAX_REGEX_LITERALS, MAX_REGEX_PATTERN_LEN, MAX_SCRIPT_VARIABLES,
+        MAX_VARIABLE_BYTES,
+    },
 };
+
+/// Names a script variable cannot take: they already mean something in a value.
+const RESERVED: &[&str] = &[
+    "db",
+    "true",
+    "false",
+    "null",
+    "undefined",
+    "NaN",
+    "Infinity",
+    "new",
+    "var",
+    "let",
+    "const",
+    "ObjectId",
+    "ISODate",
+    "Date",
+    "NumberInt",
+    "NumberLong",
+    "NumberDecimal",
+    "Decimal128",
+    "UUID",
+    "Timestamp",
+    "MinKey",
+    "MaxKey",
+];
 
 type Result<T> = std::result::Result<T, PlaygroundError>;
 
@@ -25,6 +54,10 @@ pub(crate) struct Parser {
     pub pos: usize,
     what: String,
     regexes: usize,
+    /// `var name = value` declarations seen so far, each with its serialized size.
+    vars: std::collections::HashMap<String, (Value, usize)>,
+    /// Total size of the variable values copied in so far (see `MAX_EXPANDED_BYTES`).
+    expanded: usize,
 }
 
 fn ident_start(c: char) -> bool {
@@ -42,7 +75,37 @@ impl Parser {
             pos: 0,
             what: what.to_string(),
             regexes: 0,
+            vars: Default::default(),
+            expanded: 0,
         }
+    }
+
+    pub fn has_var(&self, name: &str) -> bool {
+        self.vars.contains_key(name)
+    }
+
+    /// `var name = value` (or a later `name = value`): later values can use `name`.
+    pub fn declare(&mut self, at: usize, name: &str, value: Value) -> Result<()> {
+        if RESERVED.contains(&name) {
+            return self.fail(at, format!("`{name}` cannot be used as a variable name"));
+        }
+        if !self.vars.contains_key(name) && self.vars.len() >= MAX_SCRIPT_VARIABLES {
+            return self.fail(
+                at,
+                format!("at most {MAX_SCRIPT_VARIABLES} variables are allowed"),
+            );
+        }
+        let size = value.to_string().len();
+        if size > MAX_VARIABLE_BYTES {
+            return self.fail(
+                at,
+                format!(
+                    "`{name}` is {size} bytes; a variable can hold at most {MAX_VARIABLE_BYTES}"
+                ),
+            );
+        }
+        self.vars.insert(name.to_string(), (value, size));
+        Ok(())
     }
 
     pub fn text(&self, from: usize, to: usize) -> String {
@@ -372,6 +435,20 @@ impl Parser {
             let args = self.args()?;
             return self.construct(start, &name, &args);
         }
+        if let Some((v, size)) = self.vars.get(&name) {
+            let total = self.expanded + size;
+            if total > MAX_EXPANDED_BYTES {
+                return self.fail(
+                    start,
+                    format!(
+                        "the variables used here add up to more than {MAX_EXPANDED_BYTES} bytes"
+                    ),
+                );
+            }
+            let v = v.clone();
+            self.expanded = total;
+            return Ok(v);
+        }
         match name.as_str() {
             "true" => Ok(Value::Bool(true)),
             "false" => Ok(Value::Bool(false)),
@@ -380,7 +457,7 @@ impl Parser {
             "Infinity" => Ok(json!({"$numberDouble": "Infinity"})),
             other => self.fail(
                 start,
-                format!("unknown value `{other}`; quote strings like \"{other}\""),
+                format!("unknown value `{other}`; quote strings like \"{other}\", or declare a variable first: var {other} = {{...}}"),
             ),
         }
     }

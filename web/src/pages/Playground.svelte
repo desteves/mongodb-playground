@@ -11,6 +11,7 @@
     isDesktop,
     loadShared,
     run,
+    formatText,
     sampleDefinition,
     samplePreview,
     samples as fetchSamples,
@@ -71,6 +72,7 @@
   let config = $state(INITIAL_CONFIG);
   let script = $state(INITIAL_SCRIPT);
   let selection = $state(''); // the highlighted text in the shell
+  let selectionLine = $state(1); // the line that highlight starts on
   let results = $state('');
   // A multi-megabyte result makes the editor sluggish, so show the first part and keep the rest for Copy and export.
   const SHOW_LIMIT = 200_000;
@@ -264,6 +266,22 @@
     sendEvent('example_open', { exampleId: ex.id });
   }
 
+  /** Tidy the Data panel or the Shell (indentation and line breaks only; undo brings the old text back). */
+  async function format(which: 'data' | 'shell') {
+    const text = which === 'data' ? config : script;
+    if (!text.trim()) return;
+    notice = '';
+    try {
+      const r = await formatText(text);
+      if (!r.changed) return say('Already tidy');
+      if (which === 'data') config = r.text;
+      else script = r.text;
+      say('Formatted');
+    } catch (e) {
+      notice = e instanceof ApiError ? e.message : (e as Error).message;
+    }
+  }
+
   /** Back to the single-collection template. Undo (in either editor) brings your work back. */
   function reset() {
     if (site.examples.some((e) => e.id === 'single')) load('single');
@@ -277,9 +295,9 @@
   const body = (text = script): ScriptBody =>
     source === 'sample' ? { script: text, datasource: { sample: sampleDb } } : { script: text, config };
 
-  function show(out: ScriptOutput, planOnly: boolean, part: string) {
+  function show(out: ScriptOutput, planOnly: boolean, part: string, lineOffset = 0) {
     output = out;
-    results = transcript(out);
+    results = transcript(out, { lineOffset });
     const n = out.statements.length;
     status = `${n} statement${n === 1 ? '' : 's'} · ${out.elapsed_ms} ms${part}${planOnly ? ' · plans only' : ''}${out.ok ? '' : ' · stopped at an error'}`;
     error = '';
@@ -308,7 +326,7 @@
     try {
       const text = scope === 'selection' ? selection : script;
       const b = body(text);
-      show(await (planOnly ? explain(b) : run(b)), planOnly, scope === 'selection' ? ' · selection' : '');
+      show(await (planOnly ? explain(b) : run(b)), planOnly, scope === 'selection' ? ' · selection' : '', scope === 'selection' ? selectionLine - 1 : 0);
     } catch (e) {
       results = '';
       output = null;
@@ -403,7 +421,7 @@
   function exportResults(kind: 'json' | 'csv' | 'txt') {
     exportOpen = false;
     if (!output) return say('Run something first');
-    if (kind === 'txt') openPreview({ title: 'Transcript', filename: 'transcript.txt', mime: 'text/plain', text: results });
+    if (kind === 'txt') openPreview({ title: 'Transcript', filename: 'transcript.txt', mime: 'text/plain', text: transcript(output, { echo: true }) });
     else if (kind === 'csv') openPreview({ title: 'Last result as CSV', filename: 'results.csv', mime: 'text/csv', text: toCsv(lastRows()) });
     else
       openPreview({
@@ -556,6 +574,7 @@
               {#if source !== 'sample'}
                 <button class="iconbtn" onclick={() => dataEd?.undo()} title="Undo" aria-label="Undo in the data panel"><Icon name="undo" /></button>
                 <button class="iconbtn" onclick={() => dataEd?.redo()} title="Redo" aria-label="Redo in the data panel"><Icon name="redo" /></button>
+                <button class="mini" onclick={() => format('data')} title="Tidy the indentation and line breaks (Shift+Alt+F)" disabled={!config.trim()}>Format</button>
                 <button class="mini" onclick={() => (config = '')} title="Clear the data panel (undo brings it back)" disabled={!config}>Clear</button>
               {/if}
               {@render collapseButton('data', 'Data')}
@@ -569,7 +588,7 @@
             <div class="editor-wrap" data-testid="sample-data"><Editor value={sampleText} dark={isDark()} readonly /></div>
           {/if}
         {:else}
-          <div class="editor-wrap"><Editor bind:this={dataEd} bind:value={config} dark={isDark()} onrun={runDefault} /></div>
+          <div class="editor-wrap"><Editor bind:this={dataEd} bind:value={config} dark={isDark()} onrun={runDefault} onformat={() => format('data')} /></div>
         {/if}
       {/if}
     </section>
@@ -591,6 +610,7 @@
             <span class="tools">
               <button class="iconbtn" onclick={() => shellEd?.undo()} title="Undo" aria-label="Undo in the shell"><Icon name="undo" /></button>
               <button class="iconbtn" onclick={() => shellEd?.redo()} title="Redo" aria-label="Redo in the shell"><Icon name="redo" /></button>
+              <button class="mini" onclick={() => format('shell')} title="Tidy the indentation and line breaks (Shift+Alt+F)" disabled={!script.trim()}>Format</button>
               <button class="mini" onclick={() => (script = '')} title="Clear the shell (undo brings it back)" disabled={!script}>Clear</button>
               {@render collapseButton('shell', 'Shell')}
             </span>
@@ -614,7 +634,7 @@
             {/if}
           </div>
         </header>
-        <div class="editor-wrap"><Editor bind:this={shellEd} bind:value={script} dark={isDark()} onrun={runDefault} onselection={(t) => (selection = t)} /></div>
+        <div class="editor-wrap"><Editor bind:this={shellEd} bind:value={script} dark={isDark()} onrun={runDefault} onformat={() => format('shell')} onselection={(t, line) => ((selection = t), (selectionLine = line))} /></div>
       {/if}
     </section>
 

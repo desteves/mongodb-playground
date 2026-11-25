@@ -281,6 +281,25 @@ def status_of(path, accept="text/html"):
 check("unknown paths are 404, not 200", status_of("/wp-includes/wlwmanifest.xml") == 404 and status_of("/no/such/page") == 404, None)
 check("real pages are 200", all(status_of(p) == 200 for p in ["/", "/about", "/docs/api"]), None)
 
+# --- variables ----------------------------------------------------------------------------
+vs = {"config": {"collection": [{"external_id": "a"}, {"external_id": "a"}, {"external_id": "b"}]},
+      "script": "var G = {$group: {_id: '$external_id', count: {$sum: 1}}}\nvar M = {$match: {count: {$gt: 1}}}\ndb.collection.aggregate(G, M)"}
+s, _, b = call("POST", "/api/v1/run", vs)
+check("variables hold stages and aggregate takes them as arguments",
+      s == 200 and b["ok"] and len(b["statements"]) == 1 and b["statements"][0]["results"] == [{"_id": "a", "count": 2}], (s, b))
+s, _, b = call("POST", "/api/v1/run", {"config": vs["config"], "script": "db.collection.find(NOPE)"})
+check("an unknown variable is explained", s == 422 and "unknown value `NOPE`" in b["error"]["message"], (s, b))
+
+# --- format -----------------------------------------------------------------------------------
+s, _, b = call("POST", "/api/v1/format", {"text": "db.c.find({a:1,b:{c:2}})"})
+check("format tidies a statement", s == 200 and b["text"] == "db.c.find({ a: 1, b: { c: 2 } })\n" and b["changed"] is True, (s, b))
+s, _, b2 = call("POST", "/api/v1/format", {"text": b["text"]})
+check("formatting twice changes nothing more", s == 200 and b2["text"] == b["text"] and b2["changed"] is False, (s, b2))
+s, _, b = call("POST", "/api/v1/format", {"text": "db = {\n a: { documents: [ {x:1}, {x:2} ], // keep\n indexes: [] } }"})
+check("format keeps comments", s == 200 and "// keep" in b["text"], (s, b))
+s, _, b = call("POST", "/api/v1/format", {"text": "db.c.find({ a: 1 )"})
+check("format names the problem and the line", s == 422 and b["error"]["code"] == "invalid_request" and "line 1" in b["error"]["message"], (s, b))
+
 # --- search index -----------------------------------------------------------------------------
 search_req = {"mode": "aggregate", "collection": "movies",
               "collections": {"movies": [{"title": "The Matrix", "plot": "a hacker learns reality is simulated"}, {"title": "Alien", "plot": "a deadly creature in space"}]},

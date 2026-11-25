@@ -586,6 +586,63 @@
         }
       }
     },
+    "/api/v1/format": {
+      "post": {
+        "operationId": "formatText",
+        "summary": "Tidy the data panel or a mongosh script",
+        "description": "Re-indents and re-wraps relaxed JSON (the data panel) or shell statements: short objects, arrays and calls stay on one line, longer ones break one item per line. Comments, strings, regex literals and every token are kept; only whitespace and trailing commas change, and the result is checked against the input before it is returned. Nothing is run or stored. Text that is not well formed (an unclosed bracket, string or comment) is a 422 that names the line.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "text"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "text": {
+                    "type": "string",
+                    "description": "The data panel text or the shell script, up to 1 MB."
+                  },
+                  "width": {
+                    "type": "integer",
+                    "minimum": 20,
+                    "maximum": 200,
+                    "default": 80,
+                    "description": "Roughly how many columns a line may use before it is broken."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The tidied text",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "text": {
+                      "type": "string"
+                    },
+                    "changed": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
     "/api/v1/verify": {
       "post": {
         "operationId": "verifyTurnstile",

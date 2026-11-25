@@ -13,14 +13,17 @@
     readonly = false,
     dark = false,
     onrun,
+    onformat,
     onselection,
   }: {
     value?: string;
     readonly?: boolean;
     dark?: boolean;
     onrun?: () => void;
-    /** Called with the highlighted text ('' when nothing is highlighted) whenever the selection changes. */
-    onselection?: (text: string) => void;
+    /** Shift+Alt+F: tidy the text. */
+    onformat?: () => void;
+    /** Called with the highlighted text ('' when nothing is highlighted) and the line it starts on, whenever the selection changes. */
+    onselection?: (text: string, startLine: number) => void;
   } = $props();
 
   // The theme can change while the editor is open (light / dark / auto toggle).
@@ -49,10 +52,17 @@
         '&': { backgroundColor: 'var(--editor-bg)', color: 'var(--fg)' },
         '.cm-content': { caretColor: 'var(--accent)' },
         '.cm-gutters': { backgroundColor: 'var(--editor-gutter)', color: 'var(--muted)', border: 'none' },
-        '.cm-activeLine, .cm-activeLineGutter': { backgroundColor: 'var(--editor-active)' },
-        '&.cm-focused .cm-selectionBackground, .cm-selectionBackground': {
-          backgroundColor: isDark ? '#1f5d4a !important' : '#b6f0d6 !important',
-        },
+        // The selection is drawn BEHIND the text, so an opaque current-line background would hide a highlight on that
+        // line: keep it translucent.
+        '.cm-activeLine': { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 104, 74, 0.06)' },
+        '.cm-activeLineGutter': { backgroundColor: 'var(--editor-active)' },
+        // Highlighted text must stand out from every syntax colour (green strings, amber numbers) on every panel shade.
+        // The blues are the editor-standard selection colours: clear on both themes, and a quieter shade when the editor
+        // does not have focus so you can still see what is selected.
+        '.cm-selectionBackground': { backgroundColor: isDark ? '#3a5068 !important' : '#cfe0f5 !important' },
+        '&.cm-focused .cm-selectionBackground': { backgroundColor: isDark ? '#2b6cb0 !important' : '#8fbdf5 !important' },
+        // Editors that cannot be edited (Results) use the browser's own selection.
+        '.cm-content ::selection, .cm-line::selection': { backgroundColor: isDark ? '#2b6cb0' : '#8fbdf5' },
       },
       { dark: isDark },
     );
@@ -86,7 +96,10 @@
           // The server does the real parsing and reports errors with line and column.
           javascript(),
           // Cmd/Ctrl+Enter runs; Esc is left to the browser so keyboard users can tab out.
-          keymap.of([{ key: 'Mod-Enter', run: () => (onrun?.(), true) }]),
+          keymap.of([
+            { key: 'Mod-Enter', run: () => (onrun?.(), true) },
+            { key: 'Shift-Alt-f', run: () => (onformat ? (onformat(), true) : false) },
+          ]),
           EditorState.readOnly.of(readonly),
           EditorView.editable.of(!readonly),
           EditorView.lineWrapping,
@@ -94,7 +107,7 @@
             if (u.docChanged) value = u.state.doc.toString();
             if (u.selectionSet || u.docChanged) {
               const s = u.state.selection.main;
-              onselection?.(s.empty ? '' : u.state.sliceDoc(s.from, s.to));
+              onselection?.(s.empty ? '' : u.state.sliceDoc(s.from, s.to), u.state.doc.lineAt(s.from).number);
             }
           }),
           theme.of(themeFor(dark)),

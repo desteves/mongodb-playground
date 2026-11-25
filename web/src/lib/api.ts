@@ -146,6 +146,10 @@ export async function loadShared(id: string): Promise<Shared> {
 
 import type { SampleDefinition } from './sampledata';
 
+/** Tidy the data panel or a shell script (indentation and line breaks only). */
+export const formatText = (text: string): Promise<{ text: string; changed: boolean }> =>
+  isDesktop ? ipc('format_text', { text }) : post('/api/v1/format', { text });
+
 export interface SampleInfo {
   available: boolean;
   databases: { name: string; collections: string[]; definition?: boolean }[];

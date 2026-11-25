@@ -262,7 +262,7 @@ pub fn cost(method: &Method, path: &str) -> f64 {
     match path {
         "/api/v1/run" | "/api/v1/explain" | "/api/v1/share" | "/api/v1/mcp" | "/mcp" => 1.0,
         "/api/v1/validate" => 0.5,
-        "/api/v1/events" | "/api/v1/export" => 0.2,
+        "/api/v1/events" | "/api/v1/export" | "/api/v1/format" => 0.2,
         _ => 0.0,
     }
 }

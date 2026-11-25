@@ -15,8 +15,18 @@ const stmt = (o: Partial<StatementOutput>): StatementOutput => ({
 const out = (statements: StatementOutput[]): ScriptOutput => ({ statements, ok: true, elapsed_ms: 1 });
 
 describe('transcript', () => {
-  it('shows each statement then what it printed, like a shell session', () => {
-    const t = transcript(out([stmt({ results: [{ name: 'Ada' }] }), stmt({ statement: 'db.c.countDocuments()', op: 'count', results: [{ count: 3 }] })]));
+  it('points at each command by its line instead of repeating it', () => {
+    const t = transcript(out([stmt({ results: [{ name: 'Ada' }] }), stmt({ line: 4, statement: 'db.c.countDocuments()', op: 'count', results: [{ count: 3 }] })]));
+    expect(t).toBe('// results for the command on line 1\n[ { name: "Ada" } ]\n\n// results for the command on line 4\n3');
+    expect(t).not.toContain('db.c.');
+  });
+
+  it('counts lines from the top of the Shell when only a highlighted part ran', () => {
+    expect(transcript(out([stmt({ line: 1 })]), { lineOffset: 4 })).toContain('// results for the command on line 5');
+  });
+
+  it('can include the statement text, for exports that must read on their own', () => {
+    const t = transcript(out([stmt({ results: [{ name: 'Ada' }] }), stmt({ statement: 'db.c.countDocuments()', op: 'count', results: [{ count: 3 }] })]), { echo: true });
     expect(t).toBe('> db.c.find()\n[ { name: "Ada" } ]\n\n> db.c.countDocuments()\n3');
   });
 
@@ -28,7 +38,8 @@ describe('transcript', () => {
   });
 
   it('prints errors and hints as comments', () => {
-    const t = transcript(out([stmt({ error: { code: 'database_error', message: 'unknown operator: $nope', hint: 'Fix the operator.' } })]));
+    const t = transcript(out([stmt({ line: 2, error: { code: 'database_error', message: 'unknown operator: $nope', hint: 'Fix the operator.' } })]));
+    expect(t).toContain('// results for the command on line 2');
     expect(t).toContain('// error: unknown operator: $nope');
     expect(t).toContain('// hint: Fix the operator.');
   });
