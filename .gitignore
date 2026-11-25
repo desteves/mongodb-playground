@@ -47,3 +47,5 @@ infra/.terraform.lock.hcl.bak
 .DS_Store
 __pycache__/
 *.pyc
+# Compass Online bundle (SSPL-1.0): built on the compass branch, never committed to main
+web/public/compass-web/
